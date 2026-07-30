@@ -1,0 +1,3 @@
+#!/bin/sh
+
+odinfmt src/

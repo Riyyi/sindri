@@ -1,6 +1,6 @@
 #!/bin/sh
 
-PROJECT="hello-world"
+PROJECT="sindri"
 VERSION="dev-$(date -u '+%Y-%m-%d')-$(git rev-parse --short HEAD)"
 
 if [[ $1 == "debug" ]]

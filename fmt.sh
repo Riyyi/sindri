@@ -1,3 +1,3 @@
 #!/bin/sh
 
-odinfmt src/
+odinfmt -w src/

@@ -26,44 +26,44 @@ Represented in 3 bytes.
 
 Value is `0x514D21`, the closest approximation of "Sindri".
 
-### Version
+#### Version
 
 Version of the specification.
-Represented in 2 bytes.
+Represented in `2 bytes`.
 
 Value is `1` currently.
 
-### Compression
+#### Compression
 
 Wether LZ4 compression is enabled/disabled.
-Represented in 1 byte.
+Represented in `1 byte`.
 
 Value is configurable, defaulting to `0`.
 
-`0` = off
-`1` = default LZ4 algorithm
-`2` = lowest LZ4-HC algorithm, faster and larger
-..
+`0` = off<br>
+`1` = default LZ4 algorithm<br>
+`2` = lowest LZ4-HC algorithm, faster and larger<br>
+..<br>
 `12` = highest LZ4-HC algorithm, slower and smaller
 
-### Size per chunks
+#### Size per chunks
 
 The size in bytes of each chunk.
-Represented in 8 bytes.
+Represented in `8 bytes`.
 
 Value is configurable, defaulting to `2GiB`.
 
-### Total size
+#### Total size
 
 The total size in bytes of all chunks combined.
-Represented in 8 bytes.
+Represented in `8 bytes`.
 
-### Number of files
+#### Number of files
 
 The total number of files in the pack.
-Represented in 4 bytes.
+Represented in `4 bytes`.
 
-### A file
+#### File
 
 Piece of data stored, consisting of 3 parts:
 
@@ -71,17 +71,17 @@ Piece of data stored, consisting of 3 parts:
 - Offset
 - Size
 
-#### Path
+##### Path
 
 Path of the file as if it were on the filesystem.
-Represented in 512 bytes.
+Represented in `512 bytes`.
 
-#### Offset
+##### Offset
 
 The offset to the file, starting from the true 0th byte of the first chunk.
-Represented in 8 bytes.
+Represented in `8 bytes`.
 
-#### Size
+##### Size
 
 Size of the file.
-Represented in 8 bytes.
+Represented in `8 bytes`.

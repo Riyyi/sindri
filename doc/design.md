@@ -1,24 +1,24 @@
 # Design
 
 The data layout design is very simple. It consists of data split into chunks
-with the first chunk holding the metadata for the structure and files.
+with the first chunk holding the metadata for the structure and assets.
 
 ## Spec
 
 ```
-                                   METADATA                                    DATA
-|---------------------------------------------------------------------------||------|
+                                         METADATA                                           DATA
+|----------------------------------------------------------------------------------------||------|
 
-[ MAGIC ][ VERSION ][ COMPRESSION ][ SIZE_PER_CHUNK ][ TOTAL_SIZE ][ #FILES ][ DATA ] # chunk 1
-[                                        DATA                                       ] # chunk 2
-[                                        DATA                                       ] # etc..
-[       DATA       ]                                                                  # last chunk
+[ MAGIC ][ VERSION ][ COMPRESSION ][ SIZE_PER_CHUNK ][ TOTAL_SIZE ][ #ASSETS ][ []ASSETS ][ DATA ] # chunk 1
+[                                              DATA                                              ] # chunk 2
+[                                              DATA                                              ] # etc..
+[       DATA       ]                                                                               # last chunk
 ```
 
 ### Magic string
 
 Magic string to detect if the read file is what we expect it is.
-Represented in 3 bytes.
+Represented in 4 bytes.
 
 Value is `0x514D21`, the closest approximation of "Sindri".
 
@@ -32,7 +32,7 @@ Value is `1` currently.
 ### Compression
 
 Wether LZ4 compression is enabled/disabled.
-Represented in `1 byte`.
+Represented in `2 byte`.
 
 Value is configurable, defaulting to `0`.
 
@@ -54,30 +54,30 @@ Value is configurable, defaulting to `2GiB`.
 The total size in bytes of all chunks combined.
 Represented in `8 bytes`.
 
-### Number of files
+### Number of assets
 
-The total number of files in the pack.
+The total number of assets in the pack.
 Represented in `4 bytes`.
 
-### File
+### []Asset
 
-Piece of data stored, consisting of 3 parts:
+Index to piece of stored data, consisting of 3 parts:
 
 - Path
-- Offset
 - Size
+- Offset
 
 #### Path
 
-Path of the file as if it were on the filesystem.
+Path of the asset as if it were on the filesystem.
 Represented in `512 bytes`.
-
-#### Offset
-
-The offset to the file, starting from the true 0th byte of the first chunk.
-Represented in `8 bytes`.
 
 #### Size
 
-Size of the file.
+Size of the asset.
+Represented in `8 bytes`.
+
+#### Offset
+
+The offset to the asset, starting from the true 0th byte of the first chunk.
 Represented in `8 bytes`.

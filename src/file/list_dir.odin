@@ -7,7 +7,7 @@ import "core:strings"
 
 // -----------------------------------------
 
-DirectoryEntry :: struct #all_or_none {
+FileEntry :: struct #all_or_none {
 	relpath: string, // NOTE: owning string
 	size:    i64,
 }
@@ -18,7 +18,7 @@ DirectoryEntry :: struct #all_or_none {
 list_dir_recursive :: proc(
 	f: ^os.File,
 	allocator := context.allocator,
-) -> [dynamic]DirectoryEntry {
+) -> [dynamic]FileEntry {
 	path := os.name(f)
 	return list_dir_recursive_by_path_impl(path, allocator)
 }
@@ -27,7 +27,7 @@ list_dir_recursive :: proc(
 list_dir_recursive_by_path :: proc(
 	path: string,
 	allocator := context.allocator,
-) -> [dynamic]DirectoryEntry {
+) -> [dynamic]FileEntry {
 	return list_dir_recursive_by_path_impl(path, allocator)
 }
 
@@ -35,13 +35,13 @@ list_dir_recursive_by_path :: proc(
 list_dir_recursive_by_path_impl :: proc(
 	path: string,
 	allocator: runtime.Allocator,
-) -> [dynamic]DirectoryEntry {
+) -> [dynamic]FileEntry {
 	if !os.is_dir(path) {
 		fmt.eprintln("error: path is not a directory:", path)
 		os.exit(1)
 	}
 
-	result := make([dynamic]DirectoryEntry, allocator)
+	result := make([dynamic]FileEntry, allocator)
 
 	queue := make([dynamic]string, 0, 1, allocator) // reserve 1 slot
 	defer delete(queue) // dynamic array embeds allocator
@@ -57,7 +57,7 @@ list_dir_recursive_by_path_impl :: proc(
 @(private)
 list_dir_queue :: proc(
 	queue: ^[dynamic]string,
-	result: ^[dynamic]DirectoryEntry,
+	result: ^[dynamic]FileEntry,
 	working_dir: string,
 	allocator: runtime.Allocator,
 ) {
@@ -99,10 +99,7 @@ list_dir_queue :: proc(
 				if !was_allocation {
 					relpath = strings.clone(relpath, result^.allocator)
 				}
-				append(
-					result,
-					DirectoryEntry{relpath = relpath, size = entry.size},
-				)
+				append(result, FileEntry{relpath = relpath, size = entry.size})
 			}
 		case: // skip other types
 		}

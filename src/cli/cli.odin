@@ -24,7 +24,7 @@ parse :: proc() -> Options {
 	}
 
 	if opts.compression > 12 {
-		err: flags.Error = flags.Validation_Error {
+		err := flags.Validation_Error {
 			message = fmt.tprintf(
 				`Invalid compression "%d". Compression higher than allowed maximum.`,
 				opts.compression,

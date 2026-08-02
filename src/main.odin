@@ -14,7 +14,7 @@ main :: proc() {
 	fmt.println("compression:", opts.compression)
 	fmt.println("size:", opts.size)
 
-	asset := file.read(opts.input)
+	asset := file.read("./odinfmt.json")
 	fmt.println("path:", asset.path)
 	fmt.println("size:", asset.size)
 	fmt.println("data:", asset.data)

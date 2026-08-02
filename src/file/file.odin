@@ -16,12 +16,19 @@ Asset :: struct #all_or_none {
 	data: []u8,
 }
 
-read :: proc(f: ^os.File) -> Asset {
+read :: proc(path: string) -> Asset {
+	f, open_err := os.open(path, {.Read})
+	if open_err != nil {
+		fmt.eprintln("error: open file failed:", open_err)
+		os.exit(1)
+	}
+	defer os.close(f)
+
 	path := strings.clone(os.name(f))
 
-	size, err := os.file_size(f)
-	if err != nil {
-		fmt.eprintln("error: failed to get file size:", err)
+	size, size_err := os.file_size(f)
+	if size_err != nil {
+		fmt.eprintln("error: get file size failed:", size_err)
 		os.exit(1)
 	}
 
@@ -30,7 +37,7 @@ read :: proc(f: ^os.File) -> Asset {
 	n, read_err := os.read_full(f, data)
 	if read_err != nil {
 		delete(data)
-		fmt.eprintln("read failed:", read_err, "got", n, "of", size, "bytes")
+		fmt.eprintln("error: file read failed:", read_err, "got", n, "of", size, "bytes")
 		os.exit(1)
 	}
 

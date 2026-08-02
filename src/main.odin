@@ -19,6 +19,6 @@ main :: proc() {
 	fmt.println("size:", asset.size)
 	fmt.println("data:", asset.data)
 
-	entries := file.list_dir_by_path("./build")
+	entries := file.list_dir_by_path("./src")
 	fmt.println("entries:", entries)
 }

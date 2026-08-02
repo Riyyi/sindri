@@ -2,6 +2,7 @@ package file
 
 import "core:fmt"
 import "core:os"
+import "core:strings"
 
 // TODO:
 // - list files in directory
@@ -9,14 +10,14 @@ import "core:os"
 // - read file contents
 // - write file contents
 
-Asset :: struct {
+Asset :: struct #all_or_none {
 	path: string,
 	size: i64,
 	data: []u8,
 }
 
 read :: proc(f: ^os.File) -> Asset {
-	path := os.name(f)
+	path := strings.clone(os.name(f))
 
 	size, err := os.file_size(f)
 	if err != nil {
@@ -28,6 +29,7 @@ read :: proc(f: ^os.File) -> Asset {
 
 	n, read_err := os.read_full(f, data)
 	if read_err != nil {
+		delete(data)
 		fmt.eprintln("read failed:", read_err, "got", n, "of", size, "bytes")
 		os.exit(1)
 	}

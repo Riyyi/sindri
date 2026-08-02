@@ -3,6 +3,7 @@ package cli
 import "core:flags"
 import "core:fmt"
 import "core:os"
+import "core:strings"
 
 Options :: struct {
 	verbose:     bool `args:"name=verbose"                    usage:"Enable verbose output"`,
@@ -13,7 +14,7 @@ Options :: struct {
 	// overflow:    [dynamic]string,
 }
 
-parse :: proc() -> Options {
+parse :: proc(working_dir: string) -> Options {
 	opts: Options
 
 	err := flags.parse(&opts, os.args[1:], .Unix)
@@ -23,16 +24,48 @@ parse :: proc() -> Options {
 		os.exit(1)
 	}
 
-	if opts.compression > 12 {
-		err := flags.Validation_Error {
-			message = fmt.tprintf(
-				`Invalid compression "%d". Compression higher than allowed maximum.`,
-				opts.compression,
-			),
-		}
-		flags.print_errors(typeid_of(Options), err, os.args[0], .Unix)
-		os.exit(1)
-	}
+	verify(opts, working_dir)
 
 	return opts
+}
+
+@(private)
+verify :: proc(opts: Options, working_dir: string) {
+	if opts.compression > 12 {
+		throw_error(
+			`Invalid compression "%d". Compression higher than allowed maximum.`,
+			opts.compression,
+		)
+	}
+
+	input_path := os.name(opts.input)
+	if !os.is_dir(input_path) {
+		throw_error(`Invalid input "%v". Should be a directory`, input_path)
+	}
+
+	if opts.output != nil {
+		output_path := os.name(opts.output)
+		if !os.is_dir(output_path) {
+			throw_error(
+				`Invalid output "%v". Should be a directory`,
+				output_path,
+			)
+		}
+	}
+
+	if !strings.has_prefix(input_path, working_dir) {
+		throw_error(
+			`Invalid input "%v". Should be a subdirectory of the working directory.`,
+			input_path,
+		)
+	}
+}
+
+@(private)
+throw_error :: proc(fmt_str: string, args: ..any) {
+	err := flags.Validation_Error {
+		message = fmt.tprintf(fmt_str, ..args),
+	}
+	flags.print_errors(typeid_of(Options), err, os.args[0], .Unix)
+	os.exit(1)
 }

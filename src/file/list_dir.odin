@@ -34,19 +34,12 @@ list_dir_recursive_by_path :: proc(
 @(private)
 list_dir_recursive_by_path_impl :: proc(
 	path: string,
-	allocator: runtime.Allocator
+	allocator: runtime.Allocator,
 ) -> [dynamic]DirectoryEntry {
 	if !os.is_dir(path) {
 		fmt.eprintln("error: path is not a directory:", path)
 		os.exit(1)
 	}
-
-	working_dir, wd_err := os.get_working_directory(allocator)
-	if wd_err != nil {
-		fmt.eprintln("error: get working directory failed:", wd_err)
-		os.exit(1)
-	}
-	defer delete(working_dir, allocator)
 
 	result := make([dynamic]DirectoryEntry, allocator)
 

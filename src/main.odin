@@ -8,7 +8,10 @@ import "src:file"
 VERSION :: #config(VERSION, "dev")
 
 main :: proc() {
-	opts := cli.parse()
+	file.store_working_dir()
+	defer file.remove_working_dir()
+
+	opts := cli.parse(file.working_dir)
 
 	fmt.println("verbose:", opts.verbose)
 	fmt.println("compression:", opts.compression)

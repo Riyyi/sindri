@@ -24,7 +24,8 @@ read :: proc(path: string) -> Asset {
 	}
 	defer os.close(f)
 
-	path := strings.clone(os.name(f))
+	path := path // shadow parameter
+	path = strings.clone(os.name(f))
 
 	size, size_err := os.file_size(f)
 	if size_err != nil {

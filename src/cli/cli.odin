@@ -24,10 +24,13 @@ parse :: proc() -> Options {
 	}
 
 	if opts.compression > 12 {
-		fmt.eprintln(
-			"error: compression higher than allowed maximum:",
-			opts.compression,
-		)
+		err: flags.Error = flags.Validation_Error {
+			message = fmt.tprintf(
+				`Invalid compression "%d". Compression higher than allowed maximum.`,
+				opts.compression,
+			),
+		}
+		flags.print_errors(typeid_of(Options), err, os.args[0], .Unix)
 		os.exit(1)
 	}
 

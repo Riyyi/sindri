@@ -1,6 +1,6 @@
 package main
 
-import "core:fmt"
+import "core:os"
 
 import "src:cli"
 import "src:file"
@@ -17,22 +17,10 @@ main :: proc() {
 	// fmt.println("compression:", opts.compression)
 	// fmt.println("size:", opts.size)
 
-	// asset := file.get_asset_by_path("./odinfmt.json")
-	// fmt.println("path:", asset.relpath)
-	// fmt.println("size:", asset.size)
-	// fmt.println("data:", asset.data)
-
-	entries := file.list_dir_recursive_by_path("./src")
-	// fmt.println("entries:", entries)
-
+	entries := file.list_dir_recursive(opts.input)
 
 	file.compute_metadata_offsets(cast(u64)len(entries))
-	file.write_chunks(opts.output, opts.size, entries[:])
-
-
-	// header, asset_index := file.compute_header(entries[:])
-	// fmt.println("header:", header)
-	// fmt.println("aia:", asset_index)
-	//
-	// file.write_header(opts.output, header, asset_index)
+	file.write_assets(opts.output, entries[:], opts.size, opts.compression)
+	file.write_metadata(opts.output, entries[:], opts.size, opts.compression)
+	file.delete_offsets()
 }

@@ -23,4 +23,10 @@ Asset packer.
 ./build.sh debug
 ```
 
-<!-- TODO: git hook with fmt setup -->
+## Contributing
+
+Make sure to enable git hooks:
+
+```sh
+git config core.hooksPath scripts
+```

@@ -10,7 +10,7 @@ Options :: struct {
 	compression: u16 `args:"name=compression"                 usage:"Compression level, 0-12"`,
 	size:        u64 `args:"name=size"                        usage:"Chunk size in bytes"`,
 	input:       ^os.File `args:"name=input,file=r,required"  usage:"Path to input directory"`,
-	output:      ^os.File `args:"name=output,file=wc"         usage:"Path to ouput directory"`,
+	output:      ^os.File `args:"name=output,file=r"          usage:"Path to ouput directory"`,
 	// overflow:    [dynamic]string,
 }
 

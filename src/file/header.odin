@@ -19,7 +19,6 @@ Header :: struct #packed #all_or_none {
 	size_per_chunk:   u64,
 	total_size:       u64,
 	number_of_assets: u32,
-	// asset_index:      []AssetIndex,
 }
 
 AssetIndex :: struct #packed #all_or_none {
@@ -61,10 +60,7 @@ compute_header :: proc(
 		}
 
 		offset_in_bytes := size_of(AssetIndex) * cast(u64)i
-		offset_pointer := mem.ptr_offset(
-			&bytes[0],
-			offset_in_bytes,
-		)
+		offset_pointer := mem.ptr_offset(&bytes[0], offset_in_bytes)
 
 		ai := cast(^AssetIndex)offset_pointer
 		copy(ai.relpath[:PATH_SIZE], f.relpath)
@@ -86,4 +82,49 @@ compute_header :: proc(
 
 	assert(len(bytes) % size_of(AssetIndex) == 0) // clean multiple
 	return header, mem.slice_data_cast([]AssetIndex, bytes) // transmute slice with proper size
+}
+
+write_header :: proc(
+	output: ^os.File,
+	header: Header,
+	asset_index: []AssetIndex,
+	allocator := context.allocator,
+) {
+	// remove :: proc(name: string) -> Error {…}
+	// create :: proc(name: string) -> (^File, Error) {…}
+	// write_at :: proc(f: ^File, p: []u8, offset: i64) -> (n: int, err: Error) {…}
+
+	output_path := os.name(output)
+
+	chunk_1, c1_err := os.join_path({output_path, "CHUNK1"}, allocator)
+	if c1_err != nil {
+		fmt.eprintln("error: failed to allocate path join:", c1_err)
+		os.exit(1)
+	}
+
+	// Remove old chunk 1
+	if os.exists(chunk_1) {
+		rm_err := os.remove(chunk_1)
+		if rm_err != nil {
+			fmt.eprintln("error: failed to remove old chunk:", rm_err)
+			os.exit(1)
+		}
+	}
+
+	// Create chunk 1
+	chunk_file_1, cf1_err := os.create(chunk_1)
+	if cf1_err != nil {
+		fmt.eprintln("error: failed to create chunk:", cf1_err)
+		os.exit(1)
+	}
+
+	// Write header
+	header := header // shadow parameter
+	header_bytes := mem.ptr_to_bytes(&header)
+	os.write_at(chunk_file_1, header_bytes, 0)
+
+	// Write asset index
+	asset_index := asset_index // shadow parameter
+	index_bytes := mem.slice_data_cast([]u8, asset_index) // transmute slice with proper size
+	os.write_at(chunk_file_1, index_bytes, size_of(Header))
 }

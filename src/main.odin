@@ -25,7 +25,9 @@ main :: proc() {
 	entries := file.list_dir_recursive_by_path("./src")
 	fmt.println("entries:", entries)
 
-	header, asset_index_array := file.compute_header(entries)
+	header, asset_index := file.compute_header(entries)
 	fmt.println("header:", header)
-	fmt.println("aia:", asset_index_array)
+	fmt.println("aia:", asset_index)
+
+	file.write_header(opts.output, header, asset_index)
 }

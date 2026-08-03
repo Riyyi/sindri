@@ -3,13 +3,11 @@ package file
 import "core:fmt"
 import "core:os"
 
-// TODO:
-// - list files in directory
-//   - get relative path
-// - read file contents
-// - write file contents
+// -----------------------------------------
 
 working_dir: string
+
+// -----------------------------------------
 
 store_working_dir :: proc(allocator := context.allocator) {
 	wd, err := os.get_working_directory(allocator)
@@ -20,9 +18,9 @@ store_working_dir :: proc(allocator := context.allocator) {
 	working_dir = wd
 }
 
-remove_working_dir :: proc() {
+remove_working_dir :: proc(allocator := context.allocator) {
 	if working_dir != "" {
-		delete(working_dir)
+		delete(working_dir, allocator)
 		working_dir = ""
 	}
 }

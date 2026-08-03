@@ -31,6 +31,14 @@ list_dir_recursive_by_path :: proc(
 	return list_dir_recursive_by_path_impl(path, allocator)
 }
 
+// Frees every owning relpath string then the dynamic array itself.
+delete_entries :: proc(entries: ^[dynamic]FileEntry) {
+	for entry in entries {
+		delete(entry.relpath, entries.allocator)
+	}
+	delete(entries^)
+}
+
 @(private)
 list_dir_recursive_by_path_impl :: proc(
 	path: string,
@@ -51,7 +59,7 @@ list_dir_recursive_by_path_impl :: proc(
 		list_dir_queue(&queue, &result, working_dir, allocator)
 	}
 
-	return result
+	return result // owning [dynamic]
 }
 
 @(private)
@@ -78,7 +86,7 @@ list_dir_queue :: proc(
 		fmt.eprintln("error: read directory failed:", read_err)
 		os.exit(1)
 	}
-	defer delete(entries, allocator)
+	defer os.file_info_slice_delete(entries, allocator)
 
 	// Reserve space for new entries, minor waste as directories are also counted.
 	reserve(result, len(result) + len(entries))

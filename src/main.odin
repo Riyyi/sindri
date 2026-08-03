@@ -18,6 +18,7 @@ main :: proc() {
 	// fmt.println("size:", opts.size)
 
 	entries := file.list_dir_recursive(opts.input)
+	defer file.delete_entries(&entries)
 
 	file.compute_metadata_offsets(cast(u64)len(entries))
 	file.write_assets(opts.output, entries[:], opts.size, opts.compression)

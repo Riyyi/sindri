@@ -74,6 +74,7 @@ write_asset_index :: proc(
 	// ----------------------------------------
 
 	index_bytes := make([]u8, index_size, allocator)
+	defer delete(index_bytes)
 
 	for f, i in entries {
 

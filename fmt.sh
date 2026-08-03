@@ -1,3 +1,6 @@
 #!/bin/sh
 
-odinfmt -w src/
+set -e
+
+odinfmt -w src/ > /dev/null
+odinfmt -w tests/ > /dev/null

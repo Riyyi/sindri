@@ -2,5 +2,17 @@
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
+git stash push --keep-index --quiet
+
 "$SCRIPT_DIR/../fmt.sh"
+
+if ! git diff --quiet; then
+	echo "Formatting changed staged files; commit aborted."
+	git checkout -- "$SCRIPT_DIR/.."
+	git stash pop --quiet
+	exit 1
+fi
+
 "$SCRIPT_DIR/../test.sh"
+
+git stash pop --quiet

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 PROJECT="sindri"
 VERSION="dev-$(date -u '+%Y-%m-%d')-$(git rev-parse --short HEAD)"
 

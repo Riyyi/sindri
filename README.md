@@ -22,3 +22,5 @@ Asset packer.
 ./build.sh
 ./build.sh debug
 ```
+
+<!-- TODO: git hook with fmt setup -->

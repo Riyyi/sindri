@@ -13,21 +13,26 @@ main :: proc() {
 
 	opts := cli.parse(file.working_dir)
 
-	fmt.println("verbose:", opts.verbose)
-	fmt.println("compression:", opts.compression)
-	fmt.println("size:", opts.size)
+	// fmt.println("verbose:", opts.verbose)
+	// fmt.println("compression:", opts.compression)
+	// fmt.println("size:", opts.size)
 
-	asset := file.get_asset_by_path("./odinfmt.json")
-	fmt.println("path:", asset.relpath)
-	fmt.println("size:", asset.size)
-	fmt.println("data:", asset.data)
+	// asset := file.get_asset_by_path("./odinfmt.json")
+	// fmt.println("path:", asset.relpath)
+	// fmt.println("size:", asset.size)
+	// fmt.println("data:", asset.data)
 
 	entries := file.list_dir_recursive_by_path("./src")
-	fmt.println("entries:", entries)
+	// fmt.println("entries:", entries)
 
-	header, asset_index := file.compute_header(entries)
-	fmt.println("header:", header)
-	fmt.println("aia:", asset_index)
 
-	file.write_header(opts.output, header, asset_index)
+	file.compute_metadata_offsets(cast(u64)len(entries))
+	file.write_chunks(opts.output, opts.size, entries[:])
+
+
+	// header, asset_index := file.compute_header(entries[:])
+	// fmt.println("header:", header)
+	// fmt.println("aia:", asset_index)
+	//
+	// file.write_header(opts.output, header, asset_index)
 }

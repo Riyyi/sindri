@@ -7,15 +7,8 @@ import "core:os"
 
 // -----------------------------------------
 
-@(private = "file")
-chunk_file: ^os.File
-
-@(private = "file")
-asset_file: ^os.File
-
-// -----------------------------------------
-
 write_assets :: proc(
+	w: ^Writer,
 	output: ^os.File,
 	entries: []FileEntry,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
@@ -27,15 +20,13 @@ write_assets :: proc(
 	asset_index := 0
 	chunk_offset: u64 = 0
 	asset_offset: u64 = 0
-	total_offset: u64 = offsets.data_offset
+	total_offset: u64 = w.asset_table.data_offset
 	number_of_assets := len(entries)
-	resize(&offsets.asset_offsets, number_of_assets)
-	resize(&offsets.asset_sizes, number_of_assets)
 
-	if size_per_chunk < offsets.data_offset {
+	if size_per_chunk < w.asset_table.data_offset {
 		fmt.eprintln(
 			"error: chunk size too small to hold asset index:",
-			offsets.data_offset,
+			w.asset_table.data_offset,
 		)
 		os.exit(1)
 	}
@@ -43,25 +34,25 @@ write_assets :: proc(
 	// ----------------------------------------
 
 	// Create new chunk
-	chunk_stream := create_new_chunk(output_path, chunk_index, allocator)
+	chunk_stream := create_new_chunk(w, output_path, chunk_index, allocator)
 
 	// Edge case of the chunk size being exactly the size of the data offset
-	if size_per_chunk == offsets.data_offset {
+	if size_per_chunk == w.asset_table.data_offset {
 		chunk_index += 1
-		chunk_stream = create_new_chunk(output_path, chunk_index, allocator)
+		chunk_stream = create_new_chunk(w, output_path, chunk_index, allocator)
 	}
 
 	// Chunk 0 starts after metadata
 	if (chunk_index == 0) {
-		chunk_offset = offsets.data_offset
+		chunk_offset = w.asset_table.data_offset
 	}
 
 	// ----------------------------------------
 
 	// Open asset
-	asset_stream, asset_size := open_asset(entries[asset_index].relpath)
-	offsets.asset_offsets[asset_index] = total_offset
-	offsets.asset_sizes[asset_index] = asset_size
+	asset_stream, asset_size := open_asset(w, entries[asset_index].relpath)
+	w.asset_table.asset_offsets[asset_index] = total_offset
+	w.asset_table.asset_sizes[asset_index] = asset_size
 
 	// ----------------------------------------
 
@@ -83,9 +74,12 @@ write_assets :: proc(
 			asset_index += 1
 			asset_offset = 0
 			if asset_index == number_of_assets do break
-			asset_stream, asset_size = open_asset(entries[asset_index].relpath)
-			offsets.asset_offsets[asset_index] = total_offset
-			offsets.asset_sizes[asset_index] = asset_size
+			asset_stream, asset_size = open_asset(
+				w,
+				entries[asset_index].relpath,
+			)
+			w.asset_table.asset_offsets[asset_index] = total_offset
+			w.asset_table.asset_sizes[asset_index] = asset_size
 
 		} else if asset_remaining == chunk_remaining {
 
@@ -97,14 +91,18 @@ write_assets :: proc(
 			asset_index += 1
 			asset_offset = 0
 			if asset_index == number_of_assets do break
-			asset_stream, asset_size = open_asset(entries[asset_index].relpath)
-			offsets.asset_offsets[asset_index] = total_offset
-			offsets.asset_sizes[asset_index] = asset_size
+			asset_stream, asset_size = open_asset(
+				w,
+				entries[asset_index].relpath,
+			)
+			w.asset_table.asset_offsets[asset_index] = total_offset
+			w.asset_table.asset_sizes[asset_index] = asset_size
 
 			// Create new chunk
 			chunk_index += 1
 			chunk_offset = 0
 			chunk_stream = create_new_chunk(
+				w,
 				output_path,
 				chunk_index,
 				allocator,
@@ -118,22 +116,18 @@ write_assets :: proc(
 			chunk_index += 1
 			chunk_offset = 0
 			chunk_stream = create_new_chunk(
+				w,
 				output_path,
 				chunk_index,
 				allocator,
 			)
 		}
 	}
-
-	// ----------------------------------------
-
-	// Cleaup leftover
-	os.close(chunk_file)
-	os.close(asset_file)
 }
 
 @(private)
 create_new_chunk :: proc(
+	w: ^Writer,
 	output_path: string,
 	chunk_index: int,
 	allocator: runtime.Allocator,
@@ -149,24 +143,24 @@ create_new_chunk :: proc(
 		}
 	}
 
-	if chunk_file != nil do os.close(chunk_file) // close previous
+	if w.chunk_file != nil do os.close(w.chunk_file) // close previous
 
 	// Create new chunk
 	cf_err: os.Error
-	chunk_file, cf_err = os.create(chunk_path)
+	w.chunk_file, cf_err = os.create(chunk_path)
 	if cf_err != nil {
 		fmt.eprintln("error: create new chunk failed:", cf_err)
 		os.exit(1)
 	}
 
-	chunk_stream := os.to_stream(chunk_file)
+	chunk_stream := os.to_stream(w.chunk_file)
 
 	return chunk_stream
 }
 
 @(private)
-open_asset :: proc(path: string) -> (io.Stream, u64) {
-	if asset_file != nil do os.close(asset_file) // close previous
+open_asset :: proc(w: ^Writer, path: string) -> (io.Stream, u64) {
+	if w.asset_file != nil do os.close(w.asset_file) // close previous
 
 	// Open asset
 	asset, open_err := os.open(path, {.Read})

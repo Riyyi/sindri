@@ -29,25 +29,44 @@ AssetIndex :: struct #packed #all_or_none {
 	offset:  u64,
 }
 
-Offsets :: struct {
+AssetTable :: struct {
 	asset_index_offset: u64,
 	data_offset:        u64,
 	asset_offsets:      [dynamic]u64,
 	asset_sizes:        [dynamic]u64,
 }
 
+Writer :: struct {
+	chunk_file:  ^os.File,
+	asset_file:  ^os.File,
+	asset_table: AssetTable,
+}
+
 // -----------------------------------------
 
-@(private)
-offsets: Offsets
-
-// -----------------------------------------
-
-compute_metadata_offsets :: proc(number_of_assets: u64) {
+writer_init :: proc(
+	number_of_assets: u64,
+	allocator := context.allocator,
+) -> (
+	w: Writer,
+	err: runtime.Allocator_Error,
+) #optional_allocator_error {
 	// [ Header ][ []Asset Index ][ Data ]
-	offsets.asset_index_offset = size_of(Header)
-	offsets.data_offset =
+	w.asset_table.asset_index_offset = size_of(Header)
+	w.asset_table.data_offset =
 		size_of(Header) + (size_of(AssetIndex) * number_of_assets)
+	w.asset_table.asset_offsets = make([dynamic]u64, allocator) or_return
+	w.asset_table.asset_sizes = make([dynamic]u64, allocator) or_return
+	resize(&w.asset_table.asset_offsets, number_of_assets)
+	resize(&w.asset_table.asset_sizes, number_of_assets)
+	return w, nil
+}
+
+writer_destroy :: proc(w: ^Writer) {
+	if w.chunk_file != nil do os.close(w.chunk_file)
+	if w.asset_file != nil do os.close(w.asset_file)
+	delete(w.asset_table.asset_offsets)
+	delete(w.asset_table.asset_sizes)
 }
 
 @(private)
@@ -70,9 +89,4 @@ compute_chunk_path :: proc(
 	}
 
 	return chunk_path // owning string
-}
-
-delete_offsets :: proc() {
-	delete(offsets.asset_offsets)
-	delete(offsets.asset_sizes)
 }

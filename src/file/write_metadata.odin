@@ -8,6 +8,7 @@ import "core:os"
 // -----------------------------------------
 
 write_metadata :: proc(
+	w: ^Writer,
 	output: ^os.File,
 	entries: []FileEntry,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
@@ -28,20 +29,22 @@ write_metadata :: proc(
 	}
 	defer os.close(chunk_file)
 
-	write_header(chunk_file, number_of_assets, size_per_chunk, compression)
+	write_header(w, chunk_file, number_of_assets, size_per_chunk, compression)
 
-	write_asset_index(chunk_file, entries, number_of_assets, allocator)
+	write_asset_index(w, chunk_file, entries, number_of_assets, allocator)
 }
 
 @(private)
 write_header :: proc(
+	w: ^Writer,
 	chunk_file: ^os.File,
 	number_of_assets: u32,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 ) {
-	last_offset := offsets.asset_offsets[len(offsets.asset_offsets) - 1]
-	last_size := offsets.asset_sizes[len(offsets.asset_sizes) - 1]
+	last_offset :=
+		w.asset_table.asset_offsets[len(w.asset_table.asset_offsets) - 1]
+	last_size := w.asset_table.asset_sizes[len(w.asset_table.asset_sizes) - 1]
 	total_size := last_offset + last_size
 
 	header := Header {
@@ -64,6 +67,7 @@ write_header :: proc(
 
 @(private)
 write_asset_index :: proc(
+	w: ^Writer,
 	chunk_file: ^os.File,
 	entries: []FileEntry,
 	number_of_assets: u32,
@@ -90,8 +94,8 @@ write_asset_index :: proc(
 
 		ai := cast(^AssetIndex)offset_pointer
 		copy(ai.relpath[:PATH_SIZE], f.relpath)
-		ai.size = offsets.asset_sizes[i]
-		ai.offset = offsets.asset_offsets[i]
+		ai.size = w.asset_table.asset_sizes[i]
+		ai.offset = w.asset_table.asset_offsets[i]
 	}
 
 	assert(len(index_bytes) % size_of(AssetIndex) == 0) // clean multiple
@@ -100,7 +104,7 @@ write_asset_index :: proc(
 	n, err := os.write_at(
 		chunk_file,
 		index_bytes,
-		cast(i64)offsets.asset_index_offset,
+		cast(i64)w.asset_table.asset_index_offset,
 	)
 	if err != nil {
 		fmt.eprintln("error: chunk write error:", err)

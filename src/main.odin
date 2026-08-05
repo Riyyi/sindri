@@ -20,8 +20,16 @@ main :: proc() {
 	entries := file.list_dir_recursive(opts.input)
 	defer file.delete_entries(&entries)
 
-	file.compute_metadata_offsets(cast(u64)len(entries))
-	file.write_assets(opts.output, entries[:], opts.size, opts.compression)
-	file.write_metadata(opts.output, entries[:], opts.size, opts.compression)
-	file.delete_offsets()
+	w := file.writer_init(cast(u64)len(entries))
+	defer file.writer_destroy(&w)
+
+	file.write_assets(&w, opts.output, entries[:], opts.size, opts.compression)
+
+	file.write_metadata(
+		&w,
+		opts.output,
+		entries[:],
+		opts.size,
+		opts.compression,
+	)
 }

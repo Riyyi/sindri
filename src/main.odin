@@ -8,16 +8,16 @@ import "src:file"
 VERSION :: #config(VERSION, "dev")
 
 main :: proc() {
-	file.store_working_dir()
-	defer file.remove_working_dir()
+	working_dir := file.get_working_dir()
+	defer delete(working_dir)
 
-	opts := cli.parse(file.working_dir)
+	opts := cli.parse(working_dir)
 
 	// fmt.println("verbose:", opts.verbose)
 	// fmt.println("compression:", opts.compression)
 	// fmt.println("size:", opts.size)
 
-	entries := file.list_dir_recursive(opts.input)
+	entries := file.list_dir_recursive(opts.input, working_dir)
 	defer file.delete_entries(&entries)
 
 	w := file.writer_init(cast(u64)len(entries))

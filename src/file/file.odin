@@ -5,22 +5,12 @@ import "core:os"
 
 // -----------------------------------------
 
-working_dir: string
-
-// -----------------------------------------
-
-store_working_dir :: proc(allocator := context.allocator) {
+get_working_dir :: proc(allocator := context.allocator) -> string {
 	wd, err := os.get_working_directory(allocator)
 	if err != nil {
 		fmt.eprintln("error: get working directory failed:", err)
 		os.exit(1)
 	}
-	working_dir = wd
-}
 
-remove_working_dir :: proc(allocator := context.allocator) {
-	if working_dir != "" {
-		delete(working_dir, allocator)
-		working_dir = ""
-	}
+	return wd
 }

@@ -17,18 +17,20 @@ FileEntry :: struct #all_or_none {
 // Returning `[dynamic]DirectoryEntry` and each relpath `string` inside it are owned by the caller.
 list_dir_recursive :: proc(
 	f: ^os.File,
+	working_dir: string,
 	allocator := context.allocator,
 ) -> [dynamic]FileEntry {
 	path := os.name(f)
-	return list_dir_recursive_by_path_impl(path, allocator)
+	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
 }
 
 // Returning `[dynamic]DirectoryEntry` and each relpath `string` inside it are owned by the caller.
 list_dir_recursive_by_path :: proc(
 	path: string,
+	working_dir: string,
 	allocator := context.allocator,
 ) -> [dynamic]FileEntry {
-	return list_dir_recursive_by_path_impl(path, allocator)
+	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
 }
 
 // Frees every owning relpath string then the dynamic array itself.
@@ -42,6 +44,7 @@ delete_entries :: proc(entries: ^[dynamic]FileEntry) {
 @(private)
 list_dir_recursive_by_path_impl :: proc(
 	path: string,
+	working_dir: string,
 	allocator: runtime.Allocator,
 ) -> [dynamic]FileEntry {
 	if !os.is_dir(path) {

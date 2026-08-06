@@ -1,16 +1,18 @@
-package file
+package chunks
 
 import "base:runtime"
 import "core:fmt"
 import "core:mem"
 import "core:os"
 
+import "src:file"
+
 // -----------------------------------------
 
 write_metadata :: proc(
 	w: ^Writer,
 	output: ^os.File,
-	entries: []FileEntry,
+	entries: []file.FileEntry,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 	allocator := context.allocator,
@@ -69,7 +71,7 @@ write_header :: proc(
 write_asset_index :: proc(
 	w: ^Writer,
 	chunk_file: ^os.File,
-	entries: []FileEntry,
+	entries: []file.FileEntry,
 	number_of_assets: u32,
 	allocator: runtime.Allocator,
 ) {

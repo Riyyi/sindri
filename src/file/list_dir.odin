@@ -96,23 +96,26 @@ list_dir_queue :: proc(
 
 	for entry in entries {
 		#partial switch entry.type {
-		case os.File_Type.Directory:
-			append(queue, strings.clone(entry.fullpath, queue^.allocator))
-		case os.File_Type.Regular:
-			{
-				relpath, was_allocation := strings.replace(
-					entry.fullpath,
-					working_dir,
-					".",
-					1,
-					result^.allocator,
-				)
-				if !was_allocation {
-					relpath = strings.clone(relpath, result^.allocator)
+			case os.File_Type.Directory:
+				append(queue, strings.clone(entry.fullpath, queue^.allocator))
+			case os.File_Type.Regular:
+				{
+					relpath, was_allocation := strings.replace(
+						entry.fullpath,
+						working_dir,
+						".",
+						1,
+						result^.allocator,
+					)
+					if !was_allocation {
+						relpath = strings.clone(relpath, result^.allocator)
+					}
+					append(
+						result,
+						FileEntry{relpath = relpath, size = entry.size},
+					)
 				}
-				append(result, FileEntry{relpath = relpath, size = entry.size})
-			}
-		case: // skip other types
+			case: // skip other types
 		}
 	}
 }

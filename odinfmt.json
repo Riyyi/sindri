@@ -3,7 +3,10 @@
 	"align_struct_fields": true,
 	"align_struct_values": true,
 	"character_width": 80,
+	"indent_cases": true,
+	"newline_limit": 1,
 	"newline_style": "LF",
+	"sort_imports": true,
 	"space_single_line_blocks": true,
 	"tabs": true,
 	"tabs_width": 4

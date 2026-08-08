@@ -7,7 +7,7 @@ import "core:strings"
 
 // -----------------------------------------
 
-FileEntry :: struct #all_or_none {
+File_Entry :: struct #all_or_none {
 	relpath: string, // NOTE: owning string
 	size:    i64,
 }
@@ -19,7 +19,7 @@ list_dir_recursive :: proc(
 	f: ^os.File,
 	working_dir: string,
 	allocator := context.allocator,
-) -> [dynamic]FileEntry {
+) -> [dynamic]File_Entry {
 	path := os.name(f)
 	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
 }
@@ -29,12 +29,12 @@ list_dir_recursive_by_path :: proc(
 	path: string,
 	working_dir: string,
 	allocator := context.allocator,
-) -> [dynamic]FileEntry {
+) -> [dynamic]File_Entry {
 	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
 }
 
 // Frees every owning relpath string then the dynamic array itself.
-delete_entries :: proc(entries: ^[dynamic]FileEntry) {
+delete_entries :: proc(entries: ^[dynamic]File_Entry) {
 	for entry in entries {
 		delete(entry.relpath, entries.allocator)
 	}
@@ -46,13 +46,13 @@ list_dir_recursive_by_path_impl :: proc(
 	path: string,
 	working_dir: string,
 	allocator: runtime.Allocator,
-) -> [dynamic]FileEntry {
+) -> [dynamic]File_Entry {
 	if !os.is_dir(path) {
 		fmt.eprintln("error: path is not a directory:", path)
 		os.exit(1)
 	}
 
-	result := make([dynamic]FileEntry, allocator)
+	result := make([dynamic]File_Entry, allocator)
 
 	queue := make([dynamic]string, 0, 1, allocator) // reserve 1 slot
 	defer delete(queue) // dynamic array embeds allocator
@@ -68,7 +68,7 @@ list_dir_recursive_by_path_impl :: proc(
 @(private)
 list_dir_queue :: proc(
 	queue: ^[dynamic]string,
-	result: ^[dynamic]FileEntry,
+	result: ^[dynamic]File_Entry,
 	working_dir: string,
 	allocator: runtime.Allocator,
 ) {
@@ -112,7 +112,7 @@ list_dir_queue :: proc(
 					}
 					append(
 						result,
-						FileEntry{relpath = relpath, size = entry.size},
+						File_Entry{relpath = relpath, size = entry.size},
 					)
 				}
 			case: // skip other types

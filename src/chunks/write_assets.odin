@@ -12,7 +12,7 @@ import "src:file"
 write_assets :: proc(
 	w: ^Writer,
 	output: ^os.File,
-	entries: []file.FileEntry,
+	entries: []file.File_Entry,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 	allocator := context.allocator,

@@ -24,13 +24,13 @@ Header :: struct #packed #all_or_none {
 	number_of_assets: u32,
 }
 
-AssetIndex :: struct #packed #all_or_none {
+Asset_Index :: struct #packed #all_or_none {
 	relpath: [PATH_SIZE]u8,
 	size:    u64,
 	offset:  u64,
 }
 
-AssetTable :: struct {
+Asset_Table :: struct {
 	asset_index_offset: u64,
 	data_offset:        u64,
 	asset_offsets:      [dynamic]u64,
@@ -40,7 +40,7 @@ AssetTable :: struct {
 Writer :: struct {
 	chunk_file:  ^os.File,
 	asset_file:  ^os.File,
-	asset_table: AssetTable,
+	asset_table: Asset_Table,
 }
 
 Error :: union #shared_nil {
@@ -61,7 +61,7 @@ writer_init :: proc(
 	// [ Header ][ []Asset Index ][ Data ]
 	w.asset_table.asset_index_offset = size_of(Header)
 	w.asset_table.data_offset =
-		size_of(Header) + (size_of(AssetIndex) * number_of_assets)
+		size_of(Header) + (size_of(Asset_Index) * number_of_assets)
 	w.asset_table.asset_offsets = make([dynamic]u64, allocator) or_return
 	w.asset_table.asset_sizes = make([dynamic]u64, allocator) or_return
 	resize(&w.asset_table.asset_offsets, number_of_assets)

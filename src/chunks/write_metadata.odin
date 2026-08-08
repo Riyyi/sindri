@@ -12,7 +12,7 @@ import "src:file"
 write_metadata :: proc(
 	w: ^Writer,
 	output: ^os.File,
-	entries: []file.FileEntry,
+	entries: []file.File_Entry,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 	allocator := context.allocator,
@@ -71,11 +71,11 @@ write_header :: proc(
 write_asset_index :: proc(
 	w: ^Writer,
 	chunk_file: ^os.File,
-	entries: []file.FileEntry,
+	entries: []file.File_Entry,
 	number_of_assets: u32,
 	allocator: runtime.Allocator,
 ) {
-	index_size: u64 = size_of(AssetIndex) * cast(u64)number_of_assets
+	index_size: u64 = size_of(Asset_Index) * cast(u64)number_of_assets
 
 	// ----------------------------------------
 
@@ -91,16 +91,16 @@ write_asset_index :: proc(
 			os.exit(1)
 		}
 
-		offset_in_bytes := size_of(AssetIndex) * cast(u64)i
+		offset_in_bytes := size_of(Asset_Index) * cast(u64)i
 		offset_pointer := mem.ptr_offset(&index_bytes[0], offset_in_bytes)
 
-		ai := cast(^AssetIndex)offset_pointer
+		ai := cast(^Asset_Index)offset_pointer
 		copy(ai.relpath[:PATH_SIZE], f.relpath)
 		ai.size = w.asset_table.asset_sizes[i]
 		ai.offset = w.asset_table.asset_offsets[i]
 	}
 
-	assert(len(index_bytes) % size_of(AssetIndex) == 0) // clean multiple
+	assert(len(index_bytes) % size_of(Asset_Index) == 0) // clean multiple
 
 	// Write asset index
 	n, err := os.write_at(

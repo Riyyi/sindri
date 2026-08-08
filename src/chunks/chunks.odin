@@ -2,6 +2,7 @@ package chunks
 
 import "base:runtime"
 import "core:fmt"
+import "core:io"
 import "core:os"
 import "core:strconv"
 import "core:strings"
@@ -40,6 +41,12 @@ Writer :: struct {
 	chunk_file:  ^os.File,
 	asset_file:  ^os.File,
 	asset_table: AssetTable,
+}
+
+Error :: union #shared_nil {
+	io.Error,
+	os.Error,
+	Read_Error,
 }
 
 // -----------------------------------------

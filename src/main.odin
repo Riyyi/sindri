@@ -2,6 +2,7 @@ package main
 
 import "core:os"
 
+import "src:chunks"
 import "src:cli"
 import "src:file"
 
@@ -20,16 +21,24 @@ main :: proc() {
 	entries := file.list_dir_recursive(opts.input, working_dir)
 	defer file.delete_entries(&entries)
 
-	w := file.writer_init(cast(u64)len(entries))
-	defer file.writer_destroy(&w)
+	w := chunks.writer_init(cast(u64)len(entries))
+	defer chunks.writer_destroy(&w)
 
-	file.write_assets(&w, opts.output, entries[:], opts.size, opts.compression)
-
-	file.write_metadata(
+	chunks.write_assets(
 		&w,
 		opts.output,
 		entries[:],
 		opts.size,
 		opts.compression,
 	)
+
+	chunks.write_metadata(
+		&w,
+		opts.output,
+		entries[:],
+		opts.size,
+		opts.compression,
+	)
+
+	chunks.read_header_by_path("./build/CHUNK0")
 }

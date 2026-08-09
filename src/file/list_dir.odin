@@ -19,9 +19,17 @@ list_dir_recursive :: proc(
 	f: ^os.File,
 	working_dir: string,
 	allocator := context.allocator,
-) -> [dynamic]File_Entry {
+) -> (
+	entries: [dynamic]File_Entry,
+	err: Error,
+) {
 	path := os.name(f)
-	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
+	result := list_dir_recursive_by_path_impl(
+		path,
+		working_dir,
+		allocator,
+	) or_return
+	return result, nil
 }
 
 // Returning `[dynamic]File_Entry` and each relpath `string` inside it are owned by the caller.
@@ -29,8 +37,16 @@ list_dir_recursive_by_path :: proc(
 	path: string,
 	working_dir: string,
 	allocator := context.allocator,
-) -> [dynamic]File_Entry {
-	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
+) -> (
+	entries: [dynamic]File_Entry,
+	err: Error,
+) {
+	result := list_dir_recursive_by_path_impl(
+		path,
+		working_dir,
+		allocator,
+	) or_return
+	return result, nil
 }
 
 // Frees every owning relpath string then the dynamic array itself.
@@ -46,10 +62,13 @@ list_dir_recursive_by_path_impl :: proc(
 	path: string,
 	working_dir: string,
 	allocator: runtime.Allocator,
-) -> [dynamic]File_Entry {
+) -> (
+	[dynamic]File_Entry,
+	Error,
+) {
 	if !os.is_dir(path) {
 		fmt.eprintln("error: path is not a directory:", path)
-		os.exit(1)
+		return {}, .Not_A_Directory
 	}
 
 	result := make([dynamic]File_Entry, allocator)
@@ -62,7 +81,7 @@ list_dir_recursive_by_path_impl :: proc(
 		list_dir_queue(&queue, &result, working_dir, allocator)
 	}
 
-	return result // owning [dynamic]
+	return result, nil // owning [dynamic]
 }
 
 @(private)
@@ -71,7 +90,7 @@ list_dir_queue :: proc(
 	result: ^[dynamic]File_Entry,
 	working_dir: string,
 	allocator: runtime.Allocator,
-) {
+) -> Error {
 	assert(len(queue) > 0, "queue must not be empty")
 
 	path := pop(queue)
@@ -80,14 +99,14 @@ list_dir_queue :: proc(
 	f, open_err := os.open(path, {.Read})
 	if open_err != nil {
 		fmt.eprintln("error: open failed:", open_err)
-		os.exit(1)
+		return open_err
 	}
 	defer os.close(f)
 
 	entries, read_err := os.read_all_directory(f, allocator)
 	if read_err != nil {
 		fmt.eprintln("error: read directory failed:", read_err)
-		os.exit(1)
+		return read_err
 	}
 	defer os.file_info_slice_delete(entries, allocator)
 
@@ -118,4 +137,6 @@ list_dir_queue :: proc(
 			case: // skip other types
 		}
 	}
+
+	return nil
 }

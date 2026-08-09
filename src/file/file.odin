@@ -17,6 +17,12 @@ File_Error :: enum u8 {
 	Okay            = None,
 }
 
+file_error_strings := #sparse[File_Error]string { 	// enumerated array
+	.None            = "",
+	.Not_A_Directory = "path is not a directory",
+	.Unimplemented   = "feature is unimplemented",
+}
+
 // -----------------------------------------
 
 get_working_dir :: proc(allocator := context.allocator) -> (string, Error) {
@@ -27,4 +33,20 @@ get_working_dir :: proc(allocator := context.allocator) -> (string, Error) {
 	}
 
 	return wd, nil
+}
+
+@(require_results)
+format_error :: proc(ferr: Error) -> string {
+	if ferr == nil do return ""
+
+	switch e in ferr {
+		case nil:
+			return ""
+		case os.Error:
+			return fmt.tprintf("os: {}", e)
+		case File_Error:
+			return fmt.tprintf("file: {}", file_error_strings[e])
+	}
+
+	return "unknown error"
 }

@@ -14,9 +14,18 @@ Reader :: struct {
 Read_Error :: enum u8 {
 	None             = 0,
 	File_Not_A_Chunk = 1,
-	File_Not_Exist   = 2,
+	Asset_Not_Exist  = 2,
 	Unimplemented    = 127,
 	Okay             = None,
+}
+
+// -----------------------------------------
+
+read_error_strings := #sparse[Read_Error]string { 	// enumerated array
+	.None             = "",
+	.File_Not_A_Chunk = "file is not a chunk file",
+	.Asset_Not_Exist  = "asset does not exist",
+	.Unimplemented    = "feature is unimplemented",
 }
 
 // -----------------------------------------

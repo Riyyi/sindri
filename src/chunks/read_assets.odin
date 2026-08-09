@@ -30,7 +30,6 @@ read_file :: proc(
 	// Check filesystem first, so chunks can be overriden
 	if os.exists(path) {
 		// Open file
-		fmt.println("searching:", path)
 		file := os.open(path, {.Read}) or_return
 		defer os.close(file)
 
@@ -92,5 +91,6 @@ read_file :: proc(
 		return bytes, nil
 	}
 
-	return nil, .File_Not_Exist
+	fmt.eprintln("asset: ", path)
+	return nil, .Asset_Not_Exist
 }

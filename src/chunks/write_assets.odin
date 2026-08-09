@@ -26,8 +26,9 @@ write_assets :: proc(
 	number_of_assets := len(entries)
 
 	if size_per_chunk < w.asset_table.data_offset {
-		fmt.eprintln(
-			"error: chunk size too small to hold asset index:",
+		fmt.eprintf(
+			"chunk size: {}\nasset index size: {}\n",
+			size_per_chunk,
 			w.asset_table.data_offset,
 		)
 		return .Chunk_Size_Too_Small
@@ -160,22 +161,13 @@ create_new_chunk :: proc(
 	) or_return
 	defer delete(chunk_path, allocator)
 	if os.exists(chunk_path) {
-		rm_err := os.remove(chunk_path)
-		if rm_err != nil {
-			fmt.eprintln("error: remove old chunk failed:", rm_err)
-			return {}, rm_err
-		}
+		os.remove(chunk_path) or_return
 	}
 
 	if w.chunk_file != nil do os.close(w.chunk_file) // close previous
 
 	// Create new chunk
-	cf_err: os.Error
-	w.chunk_file, cf_err = os.create(chunk_path)
-	if cf_err != nil {
-		fmt.eprintln("error: create new chunk failed:", cf_err)
-		return {}, cf_err
-	}
+	w.chunk_file = os.create(chunk_path) or_return
 
 	chunk_stream = os.to_stream(w.chunk_file)
 
@@ -183,34 +175,29 @@ create_new_chunk :: proc(
 }
 
 @(private)
-open_asset :: proc(w: ^Writer, path: string) -> (io.Stream, u64, Error) {
+open_asset :: proc(
+	w: ^Writer,
+	path: string,
+) -> (
+	asset_stream: io.Stream,
+	asset_size: u64,
+	err: Error,
+) {
 	if w.asset_file != nil do os.close(w.asset_file) // close previous
 
 	// Open asset
-	asset, open_err := os.open(path, {.Read})
-	if open_err != nil {
-		fmt.eprintln("error: asset open failed:", open_err)
-		return {}, {}, open_err
-	}
+	asset := os.open(path, {.Read}) or_return
 
 	// Asset size
-	asset_stream := os.to_stream(asset)
-	asset_size, size_err := io.size(asset_stream)
-	if size_err != nil {
-		fmt.eprintln("error: asset size failed:", size_err)
-		return {}, {}, size_err
-	}
+	asset_stream = os.to_stream(asset)
+	asset_size = cast(u64)io.size(asset_stream) or_return
 
 	return asset_stream, cast(u64)asset_size, nil
 }
 
 @(private)
 write_chunk :: proc(dst: io.Stream, src: io.Stream, n: u64) -> Error {
-	w, err := io.copy_n(dst, src, cast(i64)n)
-	if err != nil {
-		fmt.eprintln("error: chunk write error:", err)
-		return err
-	}
+	w := io.copy_n(dst, src, cast(i64)n) or_return
 
 	return nil
 }

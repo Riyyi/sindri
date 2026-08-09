@@ -24,11 +24,7 @@ write_metadata :: proc(
 
 	chunk_path := compute_chunk_path(output_path, 0, allocator) or_return
 	defer delete(chunk_path, allocator)
-	chunk_file, err := os.open(chunk_path, {.Read, .Write})
-	if err != nil {
-		fmt.eprintln("error: open chunk failed: ", err)
-		return err
-	}
+	chunk_file := os.open(chunk_path, {.Read, .Write}) or_return
 	defer os.close(chunk_file)
 
 	write_header(w, chunk_file, number_of_assets, size_per_chunk, compression)
@@ -62,11 +58,7 @@ write_header :: proc(
 
 	// Write header
 	header_bytes := mem.ptr_to_bytes(&header)
-	n, err := os.write_at(chunk_file, header_bytes, 0)
-	if err != nil {
-		fmt.eprintln("error: chunk write error:", err)
-		return err
-	}
+	n := os.write_at(chunk_file, header_bytes, 0) or_return
 
 	return nil
 }
@@ -91,7 +83,7 @@ write_asset_index :: proc(
 		// TODO: Move to cli validation so it happens sooner
 		path_length := len(f.relpath)
 		if path_length > 512 {
-			fmt.eprintln("error: path exeeds maximum of 512:", f.relpath)
+			fmt.eprintf("path: {} ({})\n", f.relpath, path_length)
 			return .Path_Too_Large
 		}
 
@@ -107,15 +99,11 @@ write_asset_index :: proc(
 	assert(len(index_bytes) % size_of(Asset_Index) == 0) // clean multiple
 
 	// Write asset index
-	n, err := os.write_at(
+	n := os.write_at(
 		chunk_file,
 		index_bytes,
 		cast(i64)w.asset_table.asset_index_offset,
-	)
-	if err != nil {
-		fmt.eprintln("error: chunk write error:", err)
-		return err
-	}
+	) or_return
 
 	return nil
 }

@@ -67,7 +67,7 @@ list_dir_recursive_by_path_impl :: proc(
 	Error,
 ) {
 	if !os.is_dir(path) {
-		fmt.eprintln("error: path is not a directory:", path)
+		fmt.eprintln("path:", path)
 		return {}, .Not_A_Directory
 	}
 
@@ -96,18 +96,10 @@ list_dir_queue :: proc(
 	path := pop(queue)
 	defer delete(path, queue^.allocator)
 
-	f, open_err := os.open(path, {.Read})
-	if open_err != nil {
-		fmt.eprintln("error: open failed:", open_err)
-		return open_err
-	}
+	f := os.open(path, {.Read}) or_return
 	defer os.close(f)
 
-	entries, read_err := os.read_all_directory(f, allocator)
-	if read_err != nil {
-		fmt.eprintln("error: read directory failed:", read_err)
-		return read_err
-	}
+	entries := os.read_all_directory(f, allocator) or_return
 	defer os.file_info_slice_delete(entries, allocator)
 
 	// Reserve space for new entries, minor waste as directories are also counted.

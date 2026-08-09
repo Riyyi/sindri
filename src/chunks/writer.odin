@@ -24,6 +24,15 @@ Write_Error :: enum u8 {
 
 // -----------------------------------------
 
+write_error_strings := #sparse[Write_Error]string { 	// enumerated array
+	.None                 = "",
+	.Chunk_Size_Too_Small = "chunk size too small to hold asset index",
+	.Path_Too_Large       = "path exeeds maximum of 512",
+	.Unimplemented        = "feature is unimplemented",
+}
+
+// -----------------------------------------
+
 writer_init :: proc(
 	number_of_assets: u64,
 	allocator := context.allocator,
@@ -55,8 +64,8 @@ compute_chunk_path :: proc(
 	chunk_index: int,
 	allocator: runtime.Allocator,
 ) -> (
-	string,
-	Error,
+	chunk_path: string,
+	err: Error,
 ) {
 
 	@(static) buf: [20]u8
@@ -65,11 +74,7 @@ compute_chunk_path :: proc(
 	chunk_name := strings.concatenate({CHUNK, chunk_index_str}, allocator)
 	defer delete(chunk_name, allocator)
 
-	chunk_path, c_err := os.join_path({output_path, chunk_name}, allocator)
-	if c_err != nil {
-		fmt.eprintln("error: chunk join path failed:", c_err)
-		return {}, c_err
-	}
+	chunk_path = os.join_path({output_path, chunk_name}, allocator) or_return
 
 	return chunk_path, nil // owning string
 }

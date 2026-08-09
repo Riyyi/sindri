@@ -1,5 +1,6 @@
 package main
 
+import "core:fmt"
 import "core:os"
 
 import "src:chunks"
@@ -28,8 +29,11 @@ main :: proc() {
 	// fmt.println("compression:", opts.compression)
 	// fmt.println("size:", opts.size)
 
-	entries, e_err := file.list_dir_recursive(opts.input, working_dir)
-	if e_err != nil do os.exit(LIST_DIR_ERR)
+	entries, ld_err := file.list_dir_recursive(opts.input, working_dir)
+	if ld_err != nil {
+		fmt.eprintln("error:", file.format_error(ld_err))
+		os.exit(LIST_DIR_ERR)
+	}
 	defer file.delete_entries(&entries)
 
 	w := chunks.writer_init(cast(u64)len(entries))
@@ -42,7 +46,10 @@ main :: proc() {
 		opts.size,
 		opts.compression,
 	)
-	if wa_err != nil do os.exit(WRITE_ASSETS_ERR)
+	if wa_err != nil {
+		fmt.eprintln("error:", chunks.format_error(wa_err))
+		os.exit(WRITE_ASSETS_ERR)
+	}
 
 	wm_err := chunks.write_metadata(
 		&w,
@@ -51,7 +58,10 @@ main :: proc() {
 		opts.size,
 		opts.compression,
 	)
-	if wm_err != nil do os.exit(WRITE_METADATA_ERR)
+	if wm_err != nil {
+		fmt.eprintln("error:", chunks.format_error(wm_err))
+		os.exit(WRITE_METADATA_ERR)
+	}
 }
 
 // TODO: .chunkignore

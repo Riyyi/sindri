@@ -1,6 +1,7 @@
 package chunks
 
 import "base:runtime"
+import "core:fmt"
 import "core:io"
 import "core:os"
 
@@ -41,4 +42,28 @@ Error :: union #shared_nil {
 	os.Error,
 	Read_Error,
 	Write_Error,
+}
+
+// -----------------------------------------
+
+@(require_results)
+format_error :: proc(ferr: Error) -> string {
+	if ferr == nil do return ""
+
+	switch e in ferr {
+		case nil:
+			return ""
+		case runtime.Allocator_Error:
+			return fmt.tprintf("allocator: {}", e)
+		case io.Error:
+			return fmt.tprintf("io: {}", e)
+		case os.Error:
+			return fmt.tprintf("os: {}", e)
+		case Read_Error:
+			return fmt.tprintf("chunks: {}", read_error_strings[e])
+		case Write_Error:
+			return fmt.tprintf("chunks: {}", write_error_strings[e])
+	}
+
+	return "unknown error"
 }

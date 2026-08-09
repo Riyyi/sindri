@@ -136,7 +136,7 @@ create_new_chunk :: proc(
 ) -> io.Stream {
 	// Remove old chunk
 	chunk_path := compute_chunk_path(output_path, chunk_index, allocator)
-	defer delete(chunk_path)
+	defer delete(chunk_path, allocator)
 	if os.exists(chunk_path) {
 		rm_err := os.remove(chunk_path)
 		if rm_err != nil {

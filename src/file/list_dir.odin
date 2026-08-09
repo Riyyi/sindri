@@ -14,7 +14,7 @@ File_Entry :: struct #all_or_none {
 
 // -----------------------------------------
 
-// Returning `[dynamic]DirectoryEntry` and each relpath `string` inside it are owned by the caller.
+// Returning `[dynamic]File_Entry` and each relpath `string` inside it are owned by the caller.
 list_dir_recursive :: proc(
 	f: ^os.File,
 	working_dir: string,
@@ -24,7 +24,7 @@ list_dir_recursive :: proc(
 	return list_dir_recursive_by_path_impl(path, working_dir, allocator)
 }
 
-// Returning `[dynamic]DirectoryEntry` and each relpath `string` inside it are owned by the caller.
+// Returning `[dynamic]File_Entry` and each relpath `string` inside it are owned by the caller.
 list_dir_recursive_by_path :: proc(
 	path: string,
 	working_dir: string,

@@ -12,6 +12,7 @@ VERSION :: 1
 COMPRESSION :: 0
 SIZE_PER_CHUNK :: 2 * (1 << 30) // 2GiB
 PATH_SIZE :: 512
+CHUNK :: "CHUNK"
 
 // -----------------------------------------
 
@@ -44,6 +45,7 @@ Writer :: struct {
 }
 
 Error :: union #shared_nil {
+	runtime.Allocator_Error,
 	io.Error,
 	os.Error,
 	Read_Error,
@@ -86,7 +88,7 @@ compute_chunk_path :: proc(
 	@(static) buf: [20]u8
 
 	chunk_index_str := strconv.write_int(buf[:], cast(i64)chunk_index, 10)
-	chunk_name := strings.concatenate({"CHUNK", chunk_index_str}, allocator)
+	chunk_name := strings.concatenate({CHUNK, chunk_index_str}, allocator)
 	defer delete(chunk_name, allocator)
 
 	chunk_path, c_err := os.join_path({output_path, chunk_name}, allocator)

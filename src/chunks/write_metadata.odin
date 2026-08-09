@@ -23,7 +23,7 @@ write_metadata :: proc(
 	// ----------------------------------------
 
 	chunk_path := compute_chunk_path(output_path, 0, allocator)
-	defer delete(chunk_path)
+	defer delete(chunk_path, allocator)
 	chunk_file, err := os.open(chunk_path, {.Read, .Write})
 	if err != nil {
 		fmt.eprintln("error: open chunk failed: ", err)

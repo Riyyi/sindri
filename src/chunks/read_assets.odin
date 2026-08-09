@@ -63,7 +63,7 @@ read_file :: proc(
 				output_path,
 				cast(int)chunk_index,
 				allocator,
-			)
+			) or_return
 			defer delete(chunk_path, allocator)
 
 			// Open chunk

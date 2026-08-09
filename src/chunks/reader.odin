@@ -31,7 +31,7 @@ reader_init :: proc(
 	output_path := os.name(output)
 
 	// Chunk path
-	chunk_path := compute_chunk_path(output_path, 0, allocator)
+	chunk_path := compute_chunk_path(output_path, 0, allocator) or_return
 	defer delete(chunk_path, allocator)
 
 	// Chunk open

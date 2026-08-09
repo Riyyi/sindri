@@ -25,7 +25,7 @@ read_header :: proc(
 	}
 
 	if r.header.compression != 0 {
-		return .Unimplemented
+		return Read_Error.Unimplemented
 	}
 
 	return nil

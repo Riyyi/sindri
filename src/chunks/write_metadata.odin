@@ -16,24 +16,26 @@ write_metadata :: proc(
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 	allocator := context.allocator,
-) {
+) -> Error {
 	output_path := os.name(output)
 	number_of_assets := cast(u32)len(entries)
 
 	// ----------------------------------------
 
-	chunk_path := compute_chunk_path(output_path, 0, allocator)
+	chunk_path := compute_chunk_path(output_path, 0, allocator) or_return
 	defer delete(chunk_path, allocator)
 	chunk_file, err := os.open(chunk_path, {.Read, .Write})
 	if err != nil {
 		fmt.eprintln("error: open chunk failed: ", err)
-		os.exit(1)
+		return err
 	}
 	defer os.close(chunk_file)
 
 	write_header(w, chunk_file, number_of_assets, size_per_chunk, compression)
 
 	write_asset_index(w, chunk_file, entries, number_of_assets, allocator)
+
+	return nil
 }
 
 @(private)
@@ -43,7 +45,7 @@ write_header :: proc(
 	number_of_assets: u32,
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
-) {
+) -> Error {
 	last_offset :=
 		w.asset_table.asset_offsets[len(w.asset_table.asset_offsets) - 1]
 	last_size := w.asset_table.asset_sizes[len(w.asset_table.asset_sizes) - 1]
@@ -63,8 +65,10 @@ write_header :: proc(
 	n, err := os.write_at(chunk_file, header_bytes, 0)
 	if err != nil {
 		fmt.eprintln("error: chunk write error:", err)
-		os.exit(1)
+		return err
 	}
+
+	return nil
 }
 
 @(private)
@@ -74,7 +78,7 @@ write_asset_index :: proc(
 	entries: []file.File_Entry,
 	number_of_assets: u32,
 	allocator: runtime.Allocator,
-) {
+) -> Error {
 	index_size: u64 = size_of(Asset_Index) * cast(u64)number_of_assets
 
 	// ----------------------------------------
@@ -88,7 +92,7 @@ write_asset_index :: proc(
 		path_length := len(f.relpath)
 		if path_length > 512 {
 			fmt.eprintln("error: path exeeds maximum of 512:", f.relpath)
-			os.exit(1)
+			return .Path_Too_Large
 		}
 
 		offset_in_bytes := size_of(Asset_Index) * cast(u64)i
@@ -110,6 +114,8 @@ write_asset_index :: proc(
 	)
 	if err != nil {
 		fmt.eprintln("error: chunk write error:", err)
-		os.exit(1)
+		return err
 	}
+
+	return nil
 }

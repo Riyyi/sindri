@@ -1,6 +1,5 @@
 package main
 
-import "core:fmt"
 import "core:os"
 
 import "src:chunks"
@@ -25,13 +24,14 @@ main :: proc() {
 	w := chunks.writer_init(cast(u64)len(entries))
 	defer chunks.writer_destroy(&w)
 
-	chunks.write_assets(
+	err := chunks.write_assets(
 		&w,
 		opts.output,
 		entries[:],
 		opts.size,
 		opts.compression,
 	)
+	if err != nil do os.exit(1)
 
 	chunks.write_metadata(
 		&w,
@@ -40,6 +40,7 @@ main :: proc() {
 		opts.size,
 		opts.compression,
 	)
+	if err != nil do os.exit(2)
 }
 
 // TODO: .chunkignore

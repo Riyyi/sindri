@@ -16,7 +16,7 @@ write_assets :: proc(
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 	allocator := context.allocator,
-) {
+) -> Error {
 	output_path := os.name(output)
 	chunk_index := 0
 	asset_index := 0
@@ -30,18 +30,28 @@ write_assets :: proc(
 			"error: chunk size too small to hold asset index:",
 			w.asset_table.data_offset,
 		)
-		os.exit(1)
+		return .Chunk_Size_Too_Small
 	}
 
 	// ----------------------------------------
 
 	// Create new chunk
-	chunk_stream := create_new_chunk(w, output_path, chunk_index, allocator)
+	chunk_stream := create_new_chunk(
+		w,
+		output_path,
+		chunk_index,
+		allocator,
+	) or_return
 
 	// Edge case of the chunk size being exactly the size of the data offset
 	if size_per_chunk == w.asset_table.data_offset {
 		chunk_index += 1
-		chunk_stream = create_new_chunk(w, output_path, chunk_index, allocator)
+		chunk_stream = create_new_chunk(
+			w,
+			output_path,
+			chunk_index,
+			allocator,
+		) or_return
 	}
 
 	// Chunk 0 starts after metadata
@@ -52,7 +62,10 @@ write_assets :: proc(
 	// ----------------------------------------
 
 	// Open asset
-	asset_stream, asset_size := open_asset(w, entries[asset_index].relpath)
+	asset_stream, asset_size := open_asset(
+		w,
+		entries[asset_index].relpath,
+	) or_return
 	w.asset_table.asset_offsets[asset_index] = total_offset
 	w.asset_table.asset_sizes[asset_index] = asset_size
 
@@ -79,7 +92,7 @@ write_assets :: proc(
 			asset_stream, asset_size = open_asset(
 				w,
 				entries[asset_index].relpath,
-			)
+			) or_return
 			w.asset_table.asset_offsets[asset_index] = total_offset
 			w.asset_table.asset_sizes[asset_index] = asset_size
 
@@ -96,7 +109,7 @@ write_assets :: proc(
 			asset_stream, asset_size = open_asset(
 				w,
 				entries[asset_index].relpath,
-			)
+			) or_return
 			w.asset_table.asset_offsets[asset_index] = total_offset
 			w.asset_table.asset_sizes[asset_index] = asset_size
 
@@ -108,7 +121,7 @@ write_assets :: proc(
 				output_path,
 				chunk_index,
 				allocator,
-			)
+			) or_return
 		} else { 	// spillover to next chunk
 			write_chunk(chunk_stream, asset_stream, chunk_remaining)
 			asset_offset += chunk_remaining
@@ -122,9 +135,11 @@ write_assets :: proc(
 				output_path,
 				chunk_index,
 				allocator,
-			)
+			) or_return
 		}
 	}
+
+	return nil
 }
 
 @(private)
@@ -133,15 +148,22 @@ create_new_chunk :: proc(
 	output_path: string,
 	chunk_index: int,
 	allocator: runtime.Allocator,
-) -> io.Stream {
+) -> (
+	chunk_stream: io.Stream,
+	err: Error,
+) {
 	// Remove old chunk
-	chunk_path := compute_chunk_path(output_path, chunk_index, allocator)
+	chunk_path := compute_chunk_path(
+		output_path,
+		chunk_index,
+		allocator,
+	) or_return
 	defer delete(chunk_path, allocator)
 	if os.exists(chunk_path) {
 		rm_err := os.remove(chunk_path)
 		if rm_err != nil {
 			fmt.eprintln("error: remove old chunk failed:", rm_err)
-			os.exit(1)
+			return {}, rm_err
 		}
 	}
 
@@ -152,23 +174,23 @@ create_new_chunk :: proc(
 	w.chunk_file, cf_err = os.create(chunk_path)
 	if cf_err != nil {
 		fmt.eprintln("error: create new chunk failed:", cf_err)
-		os.exit(1)
+		return {}, cf_err
 	}
 
-	chunk_stream := os.to_stream(w.chunk_file)
+	chunk_stream = os.to_stream(w.chunk_file)
 
-	return chunk_stream
+	return chunk_stream, nil
 }
 
 @(private)
-open_asset :: proc(w: ^Writer, path: string) -> (io.Stream, u64) {
+open_asset :: proc(w: ^Writer, path: string) -> (io.Stream, u64, Error) {
 	if w.asset_file != nil do os.close(w.asset_file) // close previous
 
 	// Open asset
 	asset, open_err := os.open(path, {.Read})
 	if open_err != nil {
 		fmt.eprintln("error: asset open failed:", open_err)
-		os.exit(1)
+		return {}, {}, open_err
 	}
 
 	// Asset size
@@ -176,17 +198,19 @@ open_asset :: proc(w: ^Writer, path: string) -> (io.Stream, u64) {
 	asset_size, size_err := io.size(asset_stream)
 	if size_err != nil {
 		fmt.eprintln("error: asset size failed:", size_err)
-		os.exit(1)
+		return {}, {}, size_err
 	}
 
-	return asset_stream, cast(u64)asset_size
+	return asset_stream, cast(u64)asset_size, nil
 }
 
 @(private)
-write_chunk :: proc(dst: io.Stream, src: io.Stream, n: u64) {
+write_chunk :: proc(dst: io.Stream, src: io.Stream, n: u64) -> Error {
 	w, err := io.copy_n(dst, src, cast(i64)n)
 	if err != nil {
 		fmt.eprintln("error: chunk write error:", err)
-		os.exit(1)
+		return err
 	}
+
+	return nil
 }

@@ -7,14 +7,23 @@ import "core:strings"
 
 // -----------------------------------------
 
-file_exists :: proc(r: ^Reader, path: string) -> (bool, u32) {
+file_exists :: proc(
+	r: ^Reader,
+	path: string,
+	allocator := context.allocator,
+) -> (
+	found: bool,
+	index: u32,
+	error: Error,
+) {
+	clean_path := os.clean_path(path, allocator) or_return
 	for i in 0 ..< r.header.number_of_assets {
 		str := string(r.indices[i].relpath[:])
 		relpath := strings.trim_right_null(str)
-		if path == relpath do return true, i
+		if clean_path == relpath do return true, i, nil
 	}
 
-	return false, 0
+	return false, 0, nil
 }
 
 // Returning `[]u8` is owned by the caller.
@@ -26,11 +35,12 @@ read_file :: proc(
 	bytes: []u8,
 	err: Error,
 ) {
+	clean_path := os.clean_path(path, allocator) or_return
 
 	// Check filesystem first, so chunks can be overriden
-	if os.exists(path) {
+	if os.exists(clean_path) {
 		// Open file
-		file := os.open(path, {.Read}) or_return
+		file := os.open(clean_path, {.Read}) or_return
 		defer os.close(file)
 
 		// Read
@@ -42,7 +52,7 @@ read_file :: proc(
 	}
 
 	// Check chunk
-	if found, i := file_exists(r, path); found {
+	if found, i := file_exists(r, clean_path) or_return; found {
 		output_path := os.name(r.output)
 		entry := r.indices[i]
 
@@ -91,6 +101,6 @@ read_file :: proc(
 		return bytes, nil
 	}
 
-	fmt.eprintln("asset: ", path)
+	fmt.eprintln("asset: ", clean_path)
 	return nil, .Asset_Not_Exist
 }

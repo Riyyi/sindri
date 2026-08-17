@@ -37,6 +37,8 @@ reader_init :: proc(
 	r: Reader,
 	err: Error,
 ) {
+	r.output = output
+
 	output_path := os.name(output)
 
 	// Chunk path

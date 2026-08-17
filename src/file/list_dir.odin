@@ -111,20 +111,25 @@ list_dir_queue :: proc(
 				append(queue, strings.clone(entry.fullpath, queue^.allocator))
 			case os.File_Type.Regular:
 				{
-					relpath, was_allocation := strings.replace(
+					relpath_dirty, was_allocation := strings.replace(
 						entry.fullpath,
 						working_dir,
 						".",
 						1,
 						result^.allocator,
 					)
-					if !was_allocation {
-						relpath = strings.clone(relpath, result^.allocator)
-					}
+					// Remove unneeded references to the current or parent directory (./).
+					relpath := os.clean_path(
+						relpath_dirty,
+						result^.allocator,
+					) or_return
 					append(
 						result,
 						File_Entry{relpath = relpath, size = entry.size},
 					)
+					if was_allocation {
+						delete(relpath_dirty, result^.allocator)
+					}
 				}
 			case: // skip other types
 		}

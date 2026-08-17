@@ -1,11 +1,13 @@
 package file
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 
 // -----------------------------------------
 
 Error :: union #shared_nil {
+	runtime.Allocator_Error,
 	os.Error,
 	File_Error,
 }
@@ -42,6 +44,8 @@ format_error :: proc(ferr: Error) -> string {
 	switch e in ferr {
 		case nil:
 			return ""
+		case runtime.Allocator_Error:
+			return fmt.tprintf("allocator: {}", e)
 		case os.Error:
 			return fmt.tprintf("os: {}", e)
 		case File_Error:

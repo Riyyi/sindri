@@ -13,16 +13,18 @@ Error :: union #shared_nil {
 }
 
 File_Error :: enum u8 {
-	None            = 0,
-	Not_A_Directory = 1,
-	Unimplemented   = 127,
-	Okay            = None,
+	None                        = 0,
+	Not_A_Directory             = 1,
+	Not_Under_Working_Directory = 2,
+	Unimplemented               = 127,
+	Okay                        = None,
 }
 
 file_error_strings := #sparse[File_Error]string { 	// enumerated array
-	.None            = "",
-	.Not_A_Directory = "path is not a directory",
-	.Unimplemented   = "feature is unimplemented",
+	.None                        = "",
+	.Not_A_Directory             = "path is not a directory",
+	.Not_Under_Working_Directory = "path is not a subdirectory of the working directory",
+	.Unimplemented               = "feature is unimplemented",
 }
 
 // -----------------------------------------

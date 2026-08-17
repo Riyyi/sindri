@@ -3,6 +3,7 @@ package file
 import "base:runtime"
 import "core:fmt"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 
 // -----------------------------------------
@@ -23,9 +24,9 @@ list_dir_recursive :: proc(
 	entries: [dynamic]File_Entry,
 	err: Error,
 ) {
-	path := os.name(f)
+	full_path := os.name(f)
 	result := list_dir_recursive_by_path_impl(
-		path,
+		full_path,
 		working_dir,
 		allocator,
 	) or_return
@@ -41,8 +42,9 @@ list_dir_recursive_by_path :: proc(
 	entries: [dynamic]File_Entry,
 	err: Error,
 ) {
+	full_path := filepath.abs(path) or_return
 	result := list_dir_recursive_by_path_impl(
-		path,
+		full_path,
 		working_dir,
 		allocator,
 	) or_return
@@ -111,25 +113,22 @@ list_dir_queue :: proc(
 				append(queue, strings.clone(entry.fullpath, queue^.allocator))
 			case os.File_Type.Regular:
 				{
-					relpath_dirty, was_allocation := strings.replace(
-						entry.fullpath,
-						working_dir,
-						".",
-						1,
-						result^.allocator,
-					)
-					// Remove unneeded references to the current or parent directory (./).
-					relpath := os.clean_path(
-						relpath_dirty,
-						result^.allocator,
-					) or_return
+					rel := entry.fullpath[:]
+					if !strings.has_prefix(rel, working_dir) ||
+					   !os.is_path_separator(rel[len(working_dir)]) {
+						fmt.eprintf(
+							"fullpath not a subdirectory of working dir\n  {}\n  {}\n",
+							working_dir,
+							entry.fullpath,
+						)
+						return .Not_Under_Working_Directory
+					}
+					rel = rel[len(working_dir) + 1:]
+					relpath := strings.clone(rel, result^.allocator) or_return
 					append(
 						result,
 						File_Entry{relpath = relpath, size = entry.size},
 					)
-					if was_allocation {
-						delete(relpath_dirty, result^.allocator)
-					}
 				}
 			case: // skip other types
 		}

@@ -6,7 +6,7 @@ import "core:testing"
 single_tiny_file_read_from_chunk :: proc(t: ^testing.T) {
 	// Arrange
 
-	ts := test_state_init(t)
+	ts := test_state_init(t, #procedure)
 	defer test_state_destroy(&ts, t)
 
 	delete_path(&ts, t, "")
@@ -27,7 +27,7 @@ single_tiny_file_read_from_chunk :: proc(t: ^testing.T) {
 single_file_single_chunk_read_from_path :: proc(t: ^testing.T) {
 	// Arrange
 
-	ts := test_state_init(t)
+	ts := test_state_init(t, #procedure)
 	defer test_state_destroy(&ts, t)
 
 	delete_path(&ts, t, "")
@@ -49,7 +49,7 @@ single_file_single_chunk_read_from_path :: proc(t: ^testing.T) {
 multiple_files_single_chunk_read_from_chunk :: proc(t: ^testing.T) {
 	// Arrange
 
-	ts := test_state_init(t)
+	ts := test_state_init(t, #procedure)
 	defer test_state_destroy(&ts, t)
 
 	delete_path(&ts, t, "")
@@ -76,7 +76,7 @@ multiple_files_single_chunk_read_from_chunk :: proc(t: ^testing.T) {
 multiple_files_single_chunk_read_from_path :: proc(t: ^testing.T) {
 	// Arrange
 
-	ts := test_state_init(t)
+	ts := test_state_init(t, #procedure)
 	defer test_state_destroy(&ts, t)
 
 	delete_path(&ts, t, "")

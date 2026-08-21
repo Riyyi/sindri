@@ -68,7 +68,7 @@ compute_chunk_path :: proc(
 	err: Error,
 ) {
 
-	@(static) buf: [20]u8
+	buf: [20]u8 // not @(static), that would make it shared across all threads!
 
 	chunk_index_str := strconv.write_int(buf[:], cast(i64)chunk_index, 10)
 	chunk_name := strings.concatenate({CHUNK, chunk_index_str}, allocator)

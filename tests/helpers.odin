@@ -21,15 +21,19 @@ Test_State :: struct {
 
 test_state_init :: proc(
 	t: ^testing.T,
+	name: string,
 	allocator := context.allocator,
 ) -> Test_State {
 	ensure_dir(t, TEST_INPUT_DIR)
 	ensure_dir(t, TEST_OUTPUT_DIR)
 
-	temp_input_path, err := os.mkdir_temp(TEST_INPUT_DIR, "", allocator)
+	// Use the test name as the pattern so parallel tests with the same
+	// RNG seed generate distinct temp directory names.
+
+	temp_input_path, err := os.mkdir_temp(TEST_INPUT_DIR, name, allocator)
 	testing.expect(t, err == nil, os.error_string(err))
 
-	temp_output_path, err2 := os.mkdir_temp(TEST_OUTPUT_DIR, "", allocator)
+	temp_output_path, err2 := os.mkdir_temp(TEST_OUTPUT_DIR, name, allocator)
 	testing.expect(t, err2 == nil, os.error_string(err2))
 
 	return Test_State {
@@ -59,10 +63,8 @@ test_state_destroy :: proc(
 // -----------------------------------------
 
 ensure_dir :: proc(t: ^testing.T, dir: string) {
-	if !os.exists(dir) {
-		err := os.make_directory_all(dir)
-		testing.expect(t, err == nil, os.error_string(err))
-	}
+	err := os.make_directory_all(dir)
+	testing.expect(t, err == nil || err == .Exist, os.error_string(err)) // TOCTOU safe
 }
 
 create_file :: proc(
@@ -77,10 +79,8 @@ create_file :: proc(
 	defer delete(relpath, allocator)
 
 	dir := os.dir(relpath)
-	if !os.exists(dir) {
-		err2 := os.make_directory_all(dir)
-		testing.expect(t, err2 == nil, os.error_string(err2))
-	}
+	err2 := os.make_directory_all(dir)
+	testing.expect(t, err2 == nil || err2 == .Exist, os.error_string(err2)) // TOCTOU safe
 
 	file, err3 := os.create(relpath)
 	testing.expect(t, err3 == nil, os.error_string(err3))

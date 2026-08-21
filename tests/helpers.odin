@@ -1,23 +1,78 @@
 package tests
 
+import "core:fmt"
 import "core:os"
 import "core:testing"
 
 import "src:chunks"
 import "src:file"
 
-TEST_DIR :: "./build/tests"
-TEST_OUTPUT_DIR :: "./build/out"
+TEST_INPUT_DIR :: "./build/tests/in"
+TEST_OUTPUT_DIR :: "./build/tests/out"
 
 // -----------------------------------------
 
+Test_State :: struct {
+	input_dir:  string,
+	output_dir: string,
+}
+
+// -----------------------------------------
+
+test_state_init :: proc(
+	t: ^testing.T,
+	allocator := context.allocator,
+) -> Test_State {
+	ensure_dir(t, TEST_INPUT_DIR)
+	ensure_dir(t, TEST_OUTPUT_DIR)
+
+	temp_input_path, err := os.mkdir_temp(TEST_INPUT_DIR, "", allocator)
+	testing.expect(t, err == nil, os.error_string(err))
+
+	temp_output_path, err2 := os.mkdir_temp(TEST_OUTPUT_DIR, "", allocator)
+	testing.expect(t, err2 == nil, os.error_string(err2))
+
+	return Test_State {
+		input_dir = temp_input_path,
+		output_dir = temp_output_path,
+	}
+}
+
+test_state_destroy :: proc(
+	ts: ^Test_State,
+	t: ^testing.T,
+	allocator := context.allocator,
+) {
+	if os.exists(ts.input_dir) {
+		err := os.remove_all(ts.input_dir)
+		testing.expect(t, err == nil, os.error_string(err))
+	}
+	delete(ts.input_dir, allocator)
+
+	if os.exists(ts.output_dir) {
+		err := os.remove_all(ts.output_dir)
+		testing.expect(t, err == nil, os.error_string(err))
+	}
+	delete(ts.output_dir, allocator)
+}
+
+// -----------------------------------------
+
+ensure_dir :: proc(t: ^testing.T, dir: string) {
+	if !os.exists(dir) {
+		err := os.make_directory_all(dir)
+		testing.expect(t, err == nil, os.error_string(err))
+	}
+}
+
 create_file :: proc(
+	ts: ^Test_State,
 	t: ^testing.T,
 	path: string,
 	content: string,
 	allocator := context.allocator,
 ) {
-	relpath, err := os.join_path({TEST_DIR, path}, allocator)
+	relpath, err := os.join_path({ts.input_dir, path}, allocator)
 	testing.expect(t, err == nil, os.error_string(err))
 	defer delete(relpath, allocator)
 
@@ -36,36 +91,39 @@ create_file :: proc(
 }
 
 delete_path :: proc(
+	ts: ^Test_State,
 	t: ^testing.T,
 	path: string,
 	allocator := context.allocator,
 ) {
-	relpath, err := os.join_path({TEST_DIR, path}, allocator)
+	relpath, err := os.join_path({ts.input_dir, path}, allocator)
 	defer delete(relpath, allocator)
 	testing.expect(t, err == nil, os.error_string(err))
 
-	err2 := os.remove_all(relpath)
-	testing.expect(t, err2 == nil, os.error_string(err2))
+	if os.exists(relpath) {
+		err2 := os.remove_all(relpath)
+		testing.expect(t, err2 == nil, os.error_string(err2))
+	}
 }
 
-pack :: proc(t: ^testing.T, size: u64) {
+pack :: proc(ts: ^Test_State, t: ^testing.T, size: u64) {
 	wd, err := os.get_working_directory(context.allocator)
 	testing.expect(t, err == nil, os.error_string(err))
-	entries, err2 := file.list_dir_recursive_by_path(TEST_DIR, wd)
+	entries, err2 := file.list_dir_recursive_by_path(ts.input_dir, wd)
 	testing.expect(t, err2 == nil, file.format_error(err2))
 
 	w := chunks.writer_init(cast(u64)len(entries))
 	defer chunks.writer_destroy(&w)
 
-	if os.exists(TEST_OUTPUT_DIR) {
-		err3 := os.remove_all(TEST_OUTPUT_DIR)
+	if os.exists(ts.output_dir) {
+		err3 := os.remove_all(ts.output_dir)
 		testing.expect(t, err3 == nil, os.error_string(err3))
 	}
 
-	err4 := os.make_directory_all(TEST_OUTPUT_DIR) // fails if dir exists
+	err4 := os.make_directory_all(ts.output_dir) // fails if dir exists
 	testing.expect(t, err4 == nil, os.error_string(err4))
 
-	output_file, err5 := os.open(TEST_OUTPUT_DIR, {.Read})
+	output_file, err5 := os.open(ts.output_dir, {.Read})
 	testing.expect(t, err5 == nil, os.error_string(err5))
 	defer os.close(output_file)
 
@@ -77,15 +135,16 @@ pack :: proc(t: ^testing.T, size: u64) {
 }
 
 read :: proc(
+	ts: ^Test_State,
 	t: ^testing.T,
 	path: string,
 	allocator := context.allocator,
 ) -> string {
-	relpath, err := os.join_path({TEST_DIR, path}, allocator)
+	relpath, err := os.join_path({ts.input_dir, path}, allocator)
 	testing.expect(t, err == nil, os.error_string(err))
 	defer delete(relpath, allocator)
 
-	file, err2 := os.open(TEST_OUTPUT_DIR)
+	file, err2 := os.open(ts.output_dir)
 	testing.expect(t, err2 == nil, os.error_string(err2))
 	defer os.close(file)
 

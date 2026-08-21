@@ -4,6 +4,7 @@ import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
+import "core:sort"
 import "core:strings"
 
 // -----------------------------------------
@@ -98,11 +99,13 @@ list_dir_queue :: proc(
 	path := pop(queue)
 	defer delete(path, queue^.allocator)
 
-	f := os.open(path, {.Read}) or_return
-	defer os.close(f)
-
-	entries := os.read_all_directory(f, allocator) or_return
+	entries := os.read_all_directory_by_path(path, allocator) or_return
 	defer os.file_info_slice_delete(entries, allocator)
+
+	// Improve determinism, as entries are explicitly returned unsorted by os.read_dir
+	sort.quick_sort_proc(entries, proc(a, b: os.File_Info) -> int {
+		return strings.compare(a.name, b.name)
+	})
 
 	// Reserve space for new entries, minor waste as directories are also counted.
 	reserve(result, len(result) + len(entries))

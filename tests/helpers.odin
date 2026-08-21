@@ -115,23 +115,15 @@ pack :: proc(ts: ^Test_State, t: ^testing.T, size: u64) {
 	w := chunks.writer_init(cast(u64)len(entries))
 	defer chunks.writer_destroy(&w)
 
-	if os.exists(ts.output_dir) {
-		err3 := os.remove_all(ts.output_dir)
-		testing.expect(t, err3 == nil, os.error_string(err3))
-	}
-
-	err4 := os.make_directory_all(ts.output_dir) // fails if dir exists
-	testing.expect(t, err4 == nil, os.error_string(err4))
-
-	output_file, err5 := os.open(ts.output_dir, {.Read})
-	testing.expect(t, err5 == nil, os.error_string(err5))
+	output_file, err3 := os.open(ts.output_dir, {.Read})
+	testing.expect(t, err3 == nil, os.error_string(err3))
 	defer os.close(output_file)
 
-	err6 := chunks.write_assets(&w, output_file, entries[:], size, 0)
-	testing.expect(t, err6 == nil, chunks.format_error(err6))
+	err4 := chunks.write_assets(&w, output_file, entries[:], size, 0)
+	testing.expect(t, err4 == nil, chunks.format_error(err4))
 
-	err7 := chunks.write_metadata(&w, output_file, entries[:], size, 0)
-	testing.expect(t, err7 == nil, chunks.format_error(err7))
+	err5 := chunks.write_metadata(&w, output_file, entries[:], size, 0)
+	testing.expect(t, err5 == nil, chunks.format_error(err5))
 }
 
 read :: proc(

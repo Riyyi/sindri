@@ -131,7 +131,10 @@ read :: proc(
 	t: ^testing.T,
 	path: string,
 	allocator := context.allocator,
-) -> string {
+) -> (
+	bool,
+	string,
+) {
 	relpath, err := os.join_path({ts.input_dir, path}, allocator)
 	testing.expect(t, err == nil, os.error_string(err))
 	defer delete(relpath, allocator)
@@ -144,12 +147,14 @@ read :: proc(
 	testing.expect(t, err3 == nil, chunks.format_error(err3))
 	defer chunks.reader_destroy(&r)
 
-	exists, i, err4 := chunks.file_exists(&r, relpath)
-	testing.expect(t, exists)
+	exists, i, err4 := chunks.asset_exists(&r, relpath)
 	testing.expect(t, err4 == nil, chunks.format_error(err4))
 
-	bytes, err5 := chunks.read_file(&r, relpath)
-	testing.expect(t, err5 == nil, chunks.format_error(err5))
+	if exists {
+		bytes, err5 := chunks.read_asset(&r, relpath)
+		testing.expect(t, err5 == nil, chunks.format_error(err5))
+		return true, string(bytes)
+	}
 
-	return string(bytes)
+	return false, {}
 }

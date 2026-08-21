@@ -62,6 +62,11 @@ write_assets :: proc(
 
 	// ----------------------------------------
 
+	// We cant open non-existing assets
+	if number_of_assets == 0 {
+		return nil
+	}
+
 	// Open asset
 	asset_stream, asset_size := open_asset(
 		w,

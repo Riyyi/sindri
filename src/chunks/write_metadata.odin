@@ -42,10 +42,16 @@ write_header :: proc(
 	size_per_chunk: u64 = SIZE_PER_CHUNK,
 	compression: u16 = COMPRESSION,
 ) -> Error {
-	last_offset :=
-		w.asset_table.asset_offsets[len(w.asset_table.asset_offsets) - 1]
-	last_size := w.asset_table.asset_sizes[len(w.asset_table.asset_sizes) - 1]
-	total_size := last_offset + last_size
+
+	// Get total_size
+	total_size: u64 = 0
+	offset_len := len(w.asset_table.asset_offsets)
+	size_len := len(w.asset_table.asset_sizes)
+	if offset_len > 0 && size_len > 0 {
+		last_offset := w.asset_table.asset_offsets[offset_len - 1]
+		last_size := w.asset_table.asset_sizes[size_len - 1]
+		total_size = last_offset + last_size
+	}
 
 	header := Header {
 		magic_string     = MAGIC_STRING,

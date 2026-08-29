@@ -27,3 +27,11 @@ Make sure to enable git hooks:
 ```sh
 git config core.hooksPath scripts
 ```
+
+vendor
+- wgpu
+- glfw
+- lua
+- miniaudio
+- microui (temp)
+- box3d?

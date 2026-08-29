@@ -1,0 +1,8 @@
+# Files
+
+.DS_Store
+
+# Directories
+
+build
+vendor/wgpu

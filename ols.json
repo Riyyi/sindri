@@ -1,6 +1,7 @@
 {
     "collections": [
         { "name": "sindri", "path": "src" },
-        { "name": "gram",   "path": "vendor/gram/src" }
+        { "name": "gram",   "path": "vendor/gram/src" },
+        { "name": "wgpu",    "path": "vendor" }
     ]
 }

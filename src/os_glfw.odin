@@ -1,10 +1,10 @@
 package sindri
 
 import "core:time"
-
 import "vendor:glfw"
-import "vendor:wgpu"
-import "vendor:wgpu/glfwglue"
+
+import "wgpu:wgpu"
+import "wgpu:wgpu/glfwglue"
 
 OS :: struct {
 	window: glfw.WindowHandle,

@@ -2,9 +2,9 @@ package sindri
 
 import "base:runtime"
 import "core:fmt"
-import "vendor:wgpu"
 
 import "gram:chunks"
+import "wgpu:wgpu"
 
 VERSION :: #config(VERSION, "dev")
 

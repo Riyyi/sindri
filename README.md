@@ -35,3 +35,4 @@ vendor
 - miniaudio
 - microui (temp)
 - box3d?
+- build.sh -> build.odin

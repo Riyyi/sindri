@@ -39,7 +39,7 @@ os_run :: proc() {
 		dt = f32(time.duration_seconds(time.tick_since(start)))
 	}
 
-	finish()
+	instance_destroy()
 
 	glfw.DestroyWindow(state.os.window)
 	glfw.Terminate()

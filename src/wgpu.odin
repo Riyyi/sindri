@@ -27,8 +27,6 @@ state: struct {
 instance_init :: proc() {
 	state.ctx = context
 
-	os_init()
-
 	state.instance = wgpu.CreateInstance(nil)
 	if state.instance == nil {
 		panic("WebGPU is not supported")
@@ -130,8 +128,6 @@ instance_init :: proc() {
 				multisample = {count = 1, mask = 0xFFFFFFFF},
 			},
 		)
-
-		os_run()
 	}
 }
 

@@ -1,6 +1,5 @@
 package sindri
 
-import "core:time"
 import "vendor:glfw"
 
 import "wgpu:wgpu"
@@ -27,20 +26,19 @@ os_init :: proc() {
 	glfw.SetFramebufferSizeCallback(state.os.window, size_callback)
 }
 
-os_run :: proc() {
-	dt: f32
+os_should_close :: proc() -> bool {
+	return bool(glfw.WindowShouldClose(state.os.window))
+}
 
-	for !glfw.WindowShouldClose(state.os.window) {
-		start := time.tick_now()
+os_set_should_close :: proc(val: bool) {
+	glfw.SetWindowShouldClose(state.os.window, b32(val))
+}
 
-		glfw.PollEvents()
-		frame(dt)
+os_poll_events :: proc() {
+	glfw.PollEvents()
+}
 
-		dt = f32(time.duration_seconds(time.tick_since(start)))
-	}
-
-	instance_destroy()
-
+os_destroy :: proc() {
 	glfw.DestroyWindow(state.os.window)
 	glfw.Terminate()
 }

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -e
+set -eu
 
 PROJECT="sindri"
 VERSION="dev-$(date -u '+%Y-%m-%d')-$(git rev-parse --short HEAD)"
@@ -13,6 +13,12 @@ VERSION="dev-$(date -u '+%Y-%m-%d')-$(git rev-parse --short HEAD)"
 # ------------------------------------------
 
 mkdir -p build
+
+# Game.dll
+odin build game/ -show-timings \
+    -collection:sindri=src \
+    -build-mode:dynamic \
+    -out:build/game -microarch:native -define:VERSION="$VERSION-debug" -debug "$@"
 
 if [ "$1" = "debug" ]; then
     shift

@@ -1,56 +1,40 @@
 package sindri
 
-import "core:dynlib"
 import "core:fmt"
 import "core:time"
+
+import "sindri:hot_reload"
 
 VERSION :: #config(VERSION, "dev")
 
 // -----------------------------------------
 
-instance_ready: bool
-
-Game_API :: struct {
-	__handle:     dynlib.Library,
-	hello:        proc(),
-	should_close: proc() -> bool,
-}
-
 main :: proc() {
 	fmt.println("hello world!")
 
-	api: Game_API
-	load_game_api(&api)
-	api.hello()
+	// Hot reload development functionality
+	hr, err := hot_reload.hot_reload_init()
+	defer hot_reload.hot_reload_destroy(&hr)
 
-	// Initialize window
+	api := hot_reload.active_lib(&hr)
+	api.init()
+
+	// Initialize Window
 	os_init()
+	defer os_destroy()
 
 	// Initialize GPU resources
 	instance_init()
+	defer instance_destroy()
 
 	gt: f32
 
-	for !os_should_close() && !api.should_close() {
+	for !os_should_close() && !hot_reload.should_close(&hr) {
 		start := time.tick_now()
 
 		os_poll_events()
 		frame(gt)
 
 		gt = f32(time.duration_seconds(time.tick_since(start)))
-	}
-
-	// Cleanup GPU resources
-	instance_destroy()
-
-	// Cleanup window
-	os_destroy()
-}
-
-load_game_api :: proc(api: ^Game_API) {
-	// Match the names of the fields in Game_API to symbols in the game DLL
-	_, ok := dynlib.initialize_symbols(api, "build/game.dylib")
-	if !ok {
-		fmt.printfln("Failed initializing symbols: {0}", dynlib.last_error())
 	}
 }

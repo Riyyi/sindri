@@ -4,7 +4,7 @@ import "core:time"
 import "core:fmt"
 
 @(export)
-hello :: proc() {
+init :: proc() {
 	fmt.println("hello from .dll!")
 }
 

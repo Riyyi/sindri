@@ -3,6 +3,9 @@ package hot_reload
 import "core:dynlib"
 import "core:fmt"
 import "core:os"
+import "core:time"
+
+import "sindri:core"
 
 when ODIN_OS == .Windows {
 	LIB_EXT :: ".dll"
@@ -33,31 +36,39 @@ Error :: union #shared_nil {
 }
 
 Game_API :: struct {
-	lib:          dynlib.Library,
-	init:         proc(),
-	update:       proc(),
-	render:       proc(),
-	destroy:      proc(),
-	should_close: proc() -> bool,
-	api_version:  int, // iteration of the game lib
+	lib:               dynlib.Library,
+	memory:            proc() -> rawptr,
+	memory_free:       proc(),
+	memory_size:       proc() -> int,
+	memory_set:        proc(mem: rawptr),
+	settings:          proc() -> core.Settings,
+	init_once:         proc(),
+	init:              proc(),
+	update:            proc(_: f32),
+	render:            proc(),
+	destroy:           proc(),
+	should_close:      proc() -> bool,
+	force_reload:      proc() -> bool,
+	force_restart:     proc() -> bool,
+	modification_time: time.Time,
+	api_version:       int, // iteration of the game lib
 }
 
 // -----------------------------------------
 
-hot_reload_init :: proc() -> (state: Hot_Reload, error: Error) {
+hot_reload_init :: proc() -> (hr: Hot_Reload, error: Error) {
 	api: Game_API
-	api.api_version = -1
 
 	api_ok := load_game_lib(&api)
 	if !api_ok {
-		fmt.println("Failed to load Game API")
+		fmt.println("error: failed to load Game API")
 		return {}, .Load_Game_Lib_Failed
 	}
 
-	state.loaded_libs = make([dynamic]Game_API)
-	append(&state.loaded_libs, api)
+	hr.loaded_libs = make([dynamic]Game_API, 0, 0, context.allocator)
+	append(&hr.loaded_libs, api)
 
-	return state, nil
+	return hr, nil
 }
 
 hot_reload_destroy :: proc(state: ^Hot_Reload) {
@@ -84,7 +95,8 @@ copy_lib :: proc(to: string) -> bool {
 	copy_err := os.copy_file(to, GAME_LIB_PATH)
 	if copy_err != nil {
 		fmt.printfln(
-			"error: Failed to copy " + GAME_LIB_PATH + " to {0}: %v",
+			"error: failed to copy {0} to {1}: {2:v}",
+			GAME_LIB_PATH,
 			to,
 			copy_err,
 		)
@@ -96,8 +108,16 @@ copy_lib :: proc(to: string) -> bool {
 
 // Load game lib symbols
 load_game_lib :: proc(api: ^Game_API) -> bool {
-	// Load next iteration
-	api.api_version += 1
+	mod_time, mod_time_err := os.last_write_time_by_name(GAME_LIB_PATH)
+	if mod_time_err != os.ERROR_NONE {
+		fmt.printfln(
+			"error: failed getting last write time of {0}, error code: {1}",
+			GAME_LIB_PATH,
+			mod_time_err,
+		)
+		return false
+	}
+	api.modification_time = mod_time
 
 	lib_name := fmt.tprintf(
 		GAME_LIB_DIR + "game_{0}" + LIB_EXT,
@@ -106,9 +126,12 @@ load_game_lib :: proc(api: ^Game_API) -> bool {
 	copy_lib(lib_name) or_return
 
 	// Match the names of the fields in Game_API to symbols in the game DLL
-	_, ok := dynlib.initialize_symbols(api, GAME_LIB_PATH, "", "lib")
+	_, ok := dynlib.initialize_symbols(api, lib_name, "", "lib")
 	if !ok {
-		fmt.printfln("Failed initializing symbols: {0}", dynlib.last_error())
+		fmt.printfln(
+			"error: failed initializing symbols: {0}",
+			dynlib.last_error(),
+		)
 	}
 
 	return ok
@@ -119,7 +142,7 @@ unload_game_lib :: proc(api: ^Game_API) {
 	if api.lib != nil {
 		if !dynlib.unload_library(api.lib) {
 			fmt.eprintfln(
-				"error: Failed unloading lib: {0}",
+				"error: failed unloading lib: {0}",
 				dynlib.last_error(),
 			)
 		}
@@ -130,9 +153,66 @@ unload_game_lib :: proc(api: ^Game_API) {
 	   ) !=
 	   nil {
 		fmt.printfln(
-			"error: Failed to remove {0}game_{1}" + LIB_EXT + " copy",
+			"error: failed to remove {0}game_{1}{2} copy",
 			GAME_LIB_DIR,
 			api.api_version,
+			LIB_EXT,
 		)
 	}
+}
+
+reload_game_lib :: proc(hr: ^Hot_Reload) -> (lib: ^Game_API, err: Error) {
+	api := active_lib(hr)
+	force_reload := api.force_reload()
+	force_restart := api.force_restart()
+	reload := force_reload || force_restart
+
+	lib_mod, lib_mod_err := os.last_write_time_by_name(GAME_LIB_PATH)
+	// TODO: Handle error
+	if lib_mod_err == os.ERROR_NONE && api.modification_time != lib_mod {
+		reload = true
+	}
+
+	if !reload do return api, nil
+
+	new_api: Game_API
+	new_api.api_version = api.api_version + 1
+	new_api_ok := load_game_lib(&new_api)
+	if !new_api_ok {
+		fmt.println("error: failed to load Game API")
+		return nil, .Load_Game_Lib_Failed
+	}
+
+	force_restart = force_restart || api.memory_size() != new_api.memory_size()
+
+	if !force_restart {
+		// This does the normal hot reload
+
+		// Note that we don't unload the old game APIs because that
+		// would unload the lib. The lib can contain stored info
+		// such as string literals. The old libs are only unloaded
+		// on a full reset or on shutdown.
+		memory := api.memory()
+		new_api.memory_set(memory)
+	} else {
+		// This does a full reset. That's basically like opening and
+		// closing the game, without having to restart the executable.
+		//
+		// You end up in here if the game requests a full reset OR
+		// if the size of the game memory has changed. That would
+		// probably lead to a crash anyways.
+
+		api.memory_free()
+
+		for &g in hr.loaded_libs {
+			unload_game_lib(&g)
+		}
+		clear(&hr.loaded_libs)
+
+		new_api.init()
+	}
+
+	append(&hr.loaded_libs, new_api)
+
+	return active_lib(hr), nil
 }

@@ -147,6 +147,8 @@ instance_destroy :: proc() {
 resize :: proc "c" () {
 	context = state.ctx
 
+	if state.surface == nil || state.device == nil do return
+
 	state.config.width, state.config.height = os_get_framebuffer_size()
 	wgpu.SurfaceConfigure(state.surface, &state.config)
 }

@@ -26,7 +26,7 @@ state: struct {
 	pipeline_layout: wgpu.PipelineLayout,
 	pipeline:        wgpu.RenderPipeline,
 	// ----------------------------------------
-	present_modes:   []wgpu.PresentMode,
+	capabilities:    wgpu.SurfaceCapabilities,
 	vsync:           bool,
 }
 
@@ -69,6 +69,7 @@ instance_destroy :: proc() {
 	wgpu.ShaderModuleRelease(state.module)
 	wgpu.QueueRelease(state.queue)
 	wgpu.DeviceRelease(state.device)
+	wgpu.SurfaceCapabilitiesFreeMembers(state.capabilities)
 	wgpu.AdapterRelease(state.adapter)
 	wgpu.SurfaceRelease(state.surface)
 	wgpu.InstanceRelease(state.instance)
@@ -260,25 +261,29 @@ get_present_modes :: proc() {
 	if status != .Success {
 		fmt.panicf("[wgpu] surface capabilities failure: [%v]", status)
 	}
-	state.present_modes = capabilities.presentModes[:capabilities.presentModeCount]
-	fmt.println("[wgpu] supported present modes", state.present_modes)
+	state.capabilities = capabilities
+
+	present_modes := capabilities.presentModes[:capabilities.presentModeCount]
+	fmt.println("[wgpu] supported present modes", present_modes)
 }
 
 @(private = "file")
 pick_present_mode :: proc(vsync: bool) -> wgpu.PresentMode {
-	if len(state.present_modes) == 0 do return .Fifo
+	present_modes := state.capabilities.presentModes[:state.capabilities.presentModeCount]
+
+	if len(present_modes) == 0 do return .Fifo
 
 	// Mimmick wgpu auto Vsync behavior
 	// https://docs.rs/wgpu/latest/wgpu/enum.PresentMode.html
 	if vsync {
-		if slice.contains(state.present_modes, wgpu.PresentMode.FifoRelaxed) {
+		if slice.contains(present_modes, wgpu.PresentMode.FifoRelaxed) {
 			return .FifoRelaxed // Adaptive Vsync
 		}
 	} else {
-		if slice.contains(state.present_modes, wgpu.PresentMode.Immediate) {
+		if slice.contains(present_modes, wgpu.PresentMode.Immediate) {
 			return .Immediate // Vsync Off
 		}
-		if slice.contains(state.present_modes, wgpu.PresentMode.Mailbox) {
+		if slice.contains(present_modes, wgpu.PresentMode.Mailbox) {
 			return .Mailbox // Fast Vsync
 		}
 	}

@@ -1,4 +1,4 @@
-package sindri
+package platform
 
 import "base:runtime"
 import "core:fmt"

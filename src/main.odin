@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:time"
 
 import "sindri:hot_reload"
+import "sindri:platform"
 
 VERSION :: #config(VERSION, "dev")
 
@@ -20,13 +21,13 @@ main :: proc() {
 	settings := api.settings()
 
 	// Initialize Window
-	os_init(settings)
-	os_set_monitor(settings)
-	defer os_destroy()
+	platform.os_init(settings)
+	platform.os_set_monitor(settings)
+	defer platform.os_destroy()
 
 	// Initialize GPU resources
-	instance_init()
-	defer instance_destroy()
+	platform.instance_init()
+	defer platform.instance_destroy()
 
 	api.init_once()
 	api.init()
@@ -34,13 +35,13 @@ main :: proc() {
 	gt: f64 = 0
 	dt: f32
 
-	for !os_should_close() && !hot_reload.should_close(&hr) {
+	for !platform.os_should_close() && !hot_reload.should_close(&hr) {
 		start := time.tick_now()
 
-		os_poll_events()
+		platform.os_poll_events()
 		api.update(dt)
 
-		frame(dt)
+		platform.frame(dt)
 
 		dt = f32(time.duration_seconds(time.tick_since(start)))
 		gt += f64(dt)

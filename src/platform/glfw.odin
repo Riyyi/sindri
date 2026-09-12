@@ -1,4 +1,4 @@
-package sindri
+package platform
 
 import "core:fmt"
 import "core:strings"
@@ -9,6 +9,7 @@ import "wgpu:wgpu/glfwglue"
 
 import "sindri:core"
 import "sindri:event"
+import "sindri:input"
 
 // -----------------------------------------
 // Types
@@ -47,6 +48,10 @@ os_init :: proc(settings: core.Settings) {
 	glfw.SetCursorPosCallback(state.os.window, cursor_pos_callback)
 	glfw.SetScrollCallback(state.os.window, scroll_callback)
 	glfw.SetJoystickCallback(joystick_callback)
+
+	// Register input functions
+	input.key_state = key_state
+	input.mouse_button_state = mouse_button_state
 
 	// TODO: Figure out proper vsync, found 3 spots so far
 	// - glfw.SwapInterval(0) this is only for OpenGL it seems?
@@ -143,6 +148,40 @@ os_get_surface :: proc(instance: wgpu.Instance) -> wgpu.Surface {
 // -----------------------------------------
 // Private functions
 
+@(private = "file")
+key_state :: proc(key: input.Key) -> input.Action {
+	return input_action(glfw.GetKey(state.os.window, i32(key)))
+}
+
+@(private = "file")
+mouse_button_state :: proc(button: input.Mouse_Button) -> input.Action {
+	return input_action(glfw.GetMouseButton(state.os.window, i32(button)))
+}
+
+@(private = "file")
+input_action :: proc(action: i32) -> input.Action {
+	if action == glfw.RELEASE do return input.Action.Release
+	else if action == glfw.PRESS do return input.Action.Press
+	else if action == glfw.REPEAT do return input.Action.Repeat
+	when ODIN_DEBUG do panic("[glfw] unknown action")
+	return .None
+}
+
+@(private = "file")
+input_key :: proc(key: i32) -> input.Key {
+	return input.Key(key) // values match
+}
+
+@(private = "file")
+input_mod_set :: proc(mods: i32) -> (set: input.Mod_Set) {
+	return transmute(input.Mod_Set)i8(mods & 0x3f) // values match bit position
+}
+
+@(private = "file")
+input_mouse_button :: proc(button: i32) -> input.Mouse_Button {
+	return input.Mouse_Button(button) // values match
+}
+
 // Error callback
 @(private = "file")
 error_callback :: proc "c" (error: i32, description: cstring) {
@@ -171,15 +210,29 @@ key_callback :: proc "c" (
 ) {
 	context = state.ctx
 	if action == glfw.PRESS {
-		event.on_event(event.Key_Press_Event{key = key, mods = mods})
+		event.on_event(
+			event.Key_Press_Event {
+				key = input_key(key),
+				mods = input_mod_set(mods),
+			},
+		)
 	}
 	if action == glfw.RELEASE {
-		event.on_event(event.Key_Release_Event{key = key, mods = mods})
+		event.on_event(
+			event.Key_Release_Event {
+				key = input_key(key),
+				mods = input_mod_set(mods),
+			},
+		)
 	}
 	if action == glfw.REPEAT {
-		event.on_event(event.Key_Repeat_Event{key = key, mods = mods})
+		event.on_event(
+			event.Key_Repeat_Event {
+				key = input_key(key),
+				mods = input_mod_set(mods),
+			},
+		)
 	}
-
 } // GLFWkeyfun
 
 // Mouse button callback
@@ -190,10 +243,20 @@ mouse_button_callback :: proc "c" (
 ) {
 	context = state.ctx
 	if action == glfw.PRESS {
-		event.on_event(event.Mouse_Button_Press_Event{button = button})
+		event.on_event(
+			event.Mouse_Button_Press_Event {
+				button = input_mouse_button(button),
+				mods = input_mod_set(mods),
+			},
+		)
 	}
 	if action == glfw.RELEASE {
-		event.on_event(event.Mouse_Button_Release_Event{button = button})
+		event.on_event(
+			event.Mouse_Button_Release_Event {
+				button = input_mouse_button(button),
+				mods = input_mod_set(mods),
+			},
+		)
 	}
 } // GLFWmousebuttonfun
 

@@ -1,6 +1,9 @@
 package event
 
 import "core:fmt"
+
+import "sindri:input"
+
 // -----------------------------------------
 
 // event category, bitfield (?)
@@ -41,32 +44,32 @@ Joystick_Disconnect_Event :: struct {
 
 Key_Press_Event :: struct {
 	handled: bool,
-	key:     i32,
-	mods:    i32,
+	key:     input.Key,
+	mods:    input.Mod_Set,
 }
 
 Key_Release_Event :: struct {
 	handled: bool,
-	key:     i32,
-	mods:    i32,
+	key:     input.Key,
+	mods:    input.Mod_Set,
 }
 
 Key_Repeat_Event :: struct {
 	handled: bool,
-	key:     i32,
-	mods:    i32,
+	key:     input.Key,
+	mods:    input.Mod_Set,
 }
 
 Mouse_Button_Press_Event :: struct {
 	handled: bool,
-	button:  i32,
-	mods:    i32,
+	button:  input.Mouse_Button,
+	mods:    input.Mod_Set,
 }
 
 Mouse_Button_Release_Event :: struct {
 	handled: bool,
-	button:  i32,
-	mods:    i32,
+	button:  input.Mouse_Button,
+	mods:    input.Mod_Set,
 }
 
 Mouse_Position_Event :: struct {

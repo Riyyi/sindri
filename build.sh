@@ -5,6 +5,8 @@ set -eu
 PROJECT="sindri"
 VERSION="dev-$(date -u '+%Y-%m-%d')-$(git rev-parse --short HEAD)"
 
+OPTION="${1:-}"
+
 # ------------------------------------------
 
 # Setup compiled wgpu binary
@@ -39,7 +41,7 @@ if pgrep -x $PROJECT >/dev/null; then
 	exit 0
 fi
 
-if [ "$1" = "debug" ]; then
+if [ "$OPTION" = "debug" ]; then
 	shift
 
 	odin build src/ -show-timings \

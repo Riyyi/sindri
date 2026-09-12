@@ -1,5 +1,6 @@
 package game
 
+import "sindri:input"
 import "core:time"
 import "core:fmt"
 
@@ -8,6 +9,7 @@ import "sindri:core"
 // -----------------------------------------
 
 Game_Memory :: struct {
+	should_close: bool
 }
 
 g: ^Game_Memory
@@ -64,6 +66,10 @@ init :: proc() {
 @(export)
 update :: proc(dt: f32) {
 	fmt.println("dt:", dt)
+
+	if input.key_state(.Key_Escape) == .Press {
+		g.should_close = true
+	}
 }
 
 @(export)
@@ -79,7 +85,7 @@ should_close :: proc() -> bool {
 	seconds := time.duration_seconds(elapsed)
 	if seconds > 4 do return true
 
-	return false
+	return g.should_close
 }
 
 @(export)

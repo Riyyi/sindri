@@ -26,7 +26,7 @@ main :: proc() {
 	defer platform.os_destroy()
 
 	// Initialize GPU resources
-	platform.instance_init()
+	platform.instance_init(settings)
 	defer platform.instance_destroy()
 
 	api.init_once()

@@ -7,7 +7,7 @@ Settings :: struct {
 	height:  u16,
 	title:   string,
 	mode:    WindowMode,
-	refresh: u16,
+	refresh: u16, // 0 = unlimited
 	vsync:   bool,
 	// TODO:
 	// windowed resizable y/n

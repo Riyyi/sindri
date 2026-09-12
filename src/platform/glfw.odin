@@ -106,8 +106,7 @@ os_set_monitor :: proc(settings: core.Settings) {
 			)
 	}
 
-	refresh := settings.vsync ? mode.refresh_rate : i32(settings.refresh)
-	if refresh == 0 do refresh = glfw.DONT_CARE
+	refresh := settings.refresh == 0 ? glfw.DONT_CARE : i32(settings.refresh)
 
 	glfw.SetWindowMonitor(
 		state.os.window,

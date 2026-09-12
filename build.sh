@@ -6,6 +6,7 @@ PROJECT="sindri"
 VERSION="dev-$(date -u '+%Y-%m-%d')-$(git rev-parse --short HEAD)"
 
 OPTION="${1:-}"
+shift
 
 # ------------------------------------------
 
@@ -42,8 +43,6 @@ if pgrep -x $PROJECT >/dev/null; then
 fi
 
 if [ "$OPTION" = "debug" ]; then
-	shift
-
 	odin build src/ -show-timings \
 		-collection:sindri=src \
 		-collection:gram=vendor/gram/src \

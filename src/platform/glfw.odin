@@ -52,11 +52,7 @@ os_init :: proc(settings: core.Settings) {
 	// Register input functions
 	input.key_state = key_state
 	input.mouse_button_state = mouse_button_state
-
-	// TODO: Figure out proper vsync, found 3 spots so far
-	// - glfw.SwapInterval(0) this is only for OpenGL it seems?
-	// - glfw.SetWindowMonitor(refresh)
-	// - wgpu presentMode = .Fifo
+	input.mouse_position = mouse_position
 }
 
 os_destroy :: proc() {
@@ -155,6 +151,12 @@ key_state :: proc(key: input.Key) -> input.Action {
 @(private = "file")
 mouse_button_state :: proc(button: input.Mouse_Button) -> input.Action {
 	return input_action(glfw.GetMouseButton(state.os.window, i32(button)))
+}
+
+@(private = "file")
+mouse_position :: proc() -> (x_pos: f32, y_pos: f32) {
+	x_pos_f64, y_pos_64 := glfw.GetCursorPos(state.os.window)
+	return f32(x_pos_f64), f32(y_pos_64)
 }
 
 @(private = "file")

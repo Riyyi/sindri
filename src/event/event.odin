@@ -5,10 +5,11 @@ import "core:fmt"
 import "sindri:input"
 
 // -----------------------------------------
+// Types
 
 // event category, bitfield (?)
 
-Event :: union {
+Event_Data :: union {
 	Window_Close_Event,
 	Window_Resize_Event,
 	Joystick_Connect_Event,
@@ -20,6 +21,11 @@ Event :: union {
 	Mouse_Button_Release_Event,
 	Mouse_Position_Event,
 	Mouse_Scroll_Event,
+}
+
+Event :: struct {
+	data:    Event_Data,
+	handled: bool,
 }
 
 Window_Close_Event :: struct {
@@ -85,6 +91,13 @@ Mouse_Scroll_Event :: struct {
 }
 
 // -----------------------------------------
+// Variables
+
+// I want to have a list of Listeners per Event type, but this is state
+listeners: map[typeid][dynamic]Listener
+
+// -----------------------------------------
+// Public functions
 
 // Dispatcher(Event) -> forwards to the right function
 on_event :: proc(event: Event) {
@@ -116,3 +129,9 @@ on_event :: proc(event: Event) {
 			fmt.println("Joy dis:", e.id)
 	}
 }
+
+/*
+   Notes:
+
+   Have the events queued up into a frame buffer that gets drained at a specific time.
+ */

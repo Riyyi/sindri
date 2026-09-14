@@ -61,6 +61,7 @@ init :: proc() {
 	fmt.println("hello from .dll!")
 
 	g = new(Game_Memory)
+	memory_set(g)
 }
 
 @(export)

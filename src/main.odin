@@ -2,6 +2,7 @@ package sindri
 
 import "core:fmt"
 import "core:time"
+import "sindri:test"
 
 import "sindri:hot_reload"
 import "sindri:platform"
@@ -40,6 +41,9 @@ main :: proc() {
 
 		platform.os_poll_events()
 		api.update(dt)
+
+		fmt.println("MAIN:", test.test)
+		fmt.printf("pointer: %p | %p\n", &test.test, &test.test_proc)
 
 		platform.frame(dt)
 

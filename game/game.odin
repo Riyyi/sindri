@@ -5,11 +5,12 @@ import "core:time"
 import "core:fmt"
 
 import "sindri:core"
+import "sindri:test"
 
 // -----------------------------------------
 
 Game_Memory :: struct {
-	should_close: bool
+	should_close: bool,
 }
 
 g: ^Game_Memory
@@ -54,6 +55,8 @@ settings :: proc() -> core.Settings {
 @(export)
 init_once :: proc() {
 	fmt.println("init once")
+
+	test.test_proc = proc() {}
 }
 
 @(export)
@@ -62,6 +65,8 @@ init :: proc() {
 
 	g = new(Game_Memory)
 	memory_set(g)
+
+	test.test_proc = proc() { asd := 2 }
 }
 
 @(export)
@@ -71,6 +76,10 @@ update :: proc(dt: f32) {
 	if input.key_state(.Key_Escape) == .Press {
 		g.should_close = true
 	}
+
+	fmt.println("GAME:", test.test)
+	fmt.printf("pointer: %p | %p\n", &test.test, &test.test_proc)
+	test.test += 1
 }
 
 @(export)
@@ -84,19 +93,17 @@ start := time.tick_now()
 should_close :: proc() -> bool {
 	elapsed := time.tick_since(start)
 	seconds := time.duration_seconds(elapsed)
-	if seconds > 4 do return true
+	// if seconds > 4 do return true
 
 	return g.should_close
 }
 
 @(export)
 force_reload :: proc() -> bool {
-	// TODO: read keypress
-	return false
+	return input.key_state(.Key_F5) == .Press
 }
 
 @(export)
 force_restart :: proc() -> bool {
-	// TODO: read keypress
-	return false
+	return input.key_state(.Key_F6) == .Press
 }

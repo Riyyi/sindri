@@ -9,7 +9,8 @@ import "sindri:input"
 
 // event category, bitfield (?)
 
-Event_Data :: union {
+// Event_Data :: union {
+Event :: union {
 	Window_Close_Event,
 	Window_Resize_Event,
 	Joystick_Connect_Event,
@@ -23,10 +24,10 @@ Event_Data :: union {
 	Mouse_Scroll_Event,
 }
 
-Event :: struct {
-	data:    Event_Data,
-	handled: bool,
-}
+// Event :: struct {
+// 	data:    Event_Data,
+// 	handled: bool,
+// }
 
 Window_Close_Event :: struct {
 	handled: bool,
@@ -94,7 +95,7 @@ Mouse_Scroll_Event :: struct {
 // Variables
 
 // I want to have a list of Listeners per Event type, but this is state
-listeners: map[typeid][dynamic]Listener
+// listeners: map[typeid][dynamic]Listener
 
 // -----------------------------------------
 // Public functions

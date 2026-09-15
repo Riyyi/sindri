@@ -6,6 +6,7 @@ import "core:os"
 import "core:time"
 
 import "sindri:core"
+import "sindri:input"
 
 when ODIN_OS == .Windows {
 	LIB_EXT :: ".dll"
@@ -41,7 +42,8 @@ Game_API :: struct {
 	memory_free:       proc(),
 	memory_size:       proc() -> int,
 	memory_set:        proc(mem: rawptr),
-	settings:          proc() -> core.Settings,
+ settings:          proc() -> core.Settings,
+	init_input:        proc(input.Key_State_Proc, input.Mouse_Button_State_Proc, input.Mouse_Position_Proc),
 	init_once:         proc(),
 	init:              proc(),
 	update:            proc(_: f32),
@@ -68,7 +70,35 @@ hot_reload_init :: proc() -> (hr: Hot_Reload, error: Error) {
 	hr.loaded_libs = make([dynamic]Game_API, 0, 0, context.allocator)
 	append(&hr.loaded_libs, api)
 
+	inject_input(&api)
+
 	return hr, nil
+}
+
+// Store the engine's input implementations, to inject them into every
+// game lib load. The dll has its own copies of the `input` package
+// variables, which are nil until these are passed in.
+register_input :: proc(
+	hr: ^Hot_Reload,
+	ks: input.Key_State_Proc,
+	mbs: input.Mouse_Button_State_Proc,
+	mp: input.Mouse_Position_Proc,
+) {
+	key_state_proc = ks
+	mouse_button_state_proc = mbs
+	mouse_position_proc = mp
+
+	inject_input(active_lib(hr))
+}
+
+key_state_proc: input.Key_State_Proc
+mouse_button_state_proc: input.Mouse_Button_State_Proc
+mouse_position_proc: input.Mouse_Position_Proc
+
+inject_input :: proc(api: ^Game_API) {
+	if api.init_input != nil {
+		api.init_input(key_state_proc, mouse_button_state_proc, mouse_position_proc)
+	}
 }
 
 hot_reload_destroy :: proc(state: ^Hot_Reload) {
@@ -213,6 +243,8 @@ reload_game_lib :: proc(hr: ^Hot_Reload) -> (lib: ^Game_API, err: Error) {
 	}
 
 	append(&hr.loaded_libs, new_api)
+
+	inject_input(active_lib(hr))
 
 	return active_lib(hr), nil
 }

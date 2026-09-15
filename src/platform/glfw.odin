@@ -140,6 +140,15 @@ os_get_surface :: proc(instance: wgpu.Instance) -> wgpu.Surface {
 	return glfwglue.GetSurface(instance, state.os.window)
 }
 
+// Returns the input implementations for injection into the game lib
+input_procs :: proc() -> (
+	ks: input.Key_State_Proc,
+	mbs: input.Mouse_Button_State_Proc,
+	mp: input.Mouse_Position_Proc,
+) {
+	return key_state, mouse_button_state, mouse_position
+}
+
 // -----------------------------------------
 // Private functions
 

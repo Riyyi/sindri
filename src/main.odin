@@ -26,6 +26,9 @@ main :: proc() {
 	platform.os_set_monitor(settings)
 	defer platform.os_destroy()
 
+	// Inject engine input implementations into the game lib
+	hot_reload.register_input(&hr, platform.input_procs())
+
 	// Initialize GPU resources
 	platform.instance_init(settings)
 	defer platform.instance_destroy()

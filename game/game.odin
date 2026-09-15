@@ -53,6 +53,17 @@ settings :: proc() -> core.Settings {
 }
 
 @(export)
+init_input :: proc(
+	key_state_proc: input.Key_State_Proc,
+	mouse_button_state_proc: input.Mouse_Button_State_Proc,
+	mouse_position_proc: input.Mouse_Position_Proc,
+) {
+	input.key_state = key_state_proc
+	input.mouse_button_state = mouse_button_state_proc
+	input.mouse_position = mouse_position_proc
+}
+
+@(export)
 init_once :: proc() {
 	fmt.println("init once")
 

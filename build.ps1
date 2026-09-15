@@ -8,6 +8,11 @@ $OPTION = $args[0]
 if ($args) { $args = $args[1..($args.Length - 1)] } else { $args = @() }
 
 # ------------------------------------------
+
+# Setup compiled wgpu binary
+& (Join-Path $PSScriptRoot "scripts\wgpu-init.ps1")
+
+# ------------------------------------------
 # Game compile
 
 New-Item -ItemType Directory -Force -Path build | Out-Null

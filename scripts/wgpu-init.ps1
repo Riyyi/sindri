@@ -5,6 +5,11 @@ $VENDOR_DIR = Join-Path $PSScriptRoot "..\vendor" | Resolve-Path
 # ------------------------------------------
 # Platform detection (target dir name, only used for the up-to-date check)
 
+# Windows PowerShell 5.1 doesn't define $IsWindows/$IsMacOS/$IsLinux
+if (-not (Test-Path variable:IsWindows)) { $IsWindows = $env:OS -eq "Windows_NT" }
+if (-not (Test-Path variable:IsMacOS)) { $IsMacOS = $false }
+if (-not (Test-Path variable:IsLinux)) { $IsLinux = $false }
+
 if ($IsWindows) {
 	$os = "windows"
 	$extra = "-msvc"
@@ -72,6 +77,6 @@ $wgpuPath = Join-Path $odinRoot "vendor\wgpu"
 Copy-Item -Recurse $wgpuPath $VENDOR_DIR
 
 # Point imports at the copied vendor wgpu package
-Get-ChildItem -Path $VENDOR_DIR "wgpu" -Recurse -Filter *.odin | ForEach-Object {
+Get-ChildItem -Path (Join-Path $VENDOR_DIR "wgpu") -Recurse -Filter *.odin | ForEach-Object {
 	(Get-Content $_.FullName -Raw) -replace '"vendor:wgpu"', '"wgpu:wgpu"' | Set-Content $_.FullName -NoNewline
 }

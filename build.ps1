@@ -16,7 +16,7 @@ New-Item -ItemType Directory -Force -Path build | Out-Null
 odin build game/ -show-timings `
 	-collection:sindri=src `
 	-build-mode:dynamic `
-	-out:build/game_tmp -microarch:native "-define:VERSION=$VERSION-debug" -debug @args
+	-out:build/game_tmp.dll -microarch:native "-define:VERSION=$VERSION-debug" -debug @args
 
 # Need to use a temp file on Windows because it first writes an empty file,
 # which the engine will load before it is actually fully written.
@@ -41,7 +41,7 @@ if ($OPTION -eq "debug") {
 		-collection:sindri=src `
 		-collection:gram=vendor/gram/src `
 		-collection:wgpu=vendor `
-		-out:build/$PROJECT -microarch:native -use-separate-modules "-define:VERSION=$VERSION-debug" -debug @args
+		-out:build/$PROJECT.exe -microarch:native -use-separate-modules "-define:VERSION=$VERSION-debug" -debug @args
 	exit 0
 }
 
@@ -49,4 +49,4 @@ odin build src/ -show-timings `
 	-collection:sindri=src `
 	-collection:gram=vendor/gram/src `
 	-collection:wgpu=vendor `
-	-out:build/$PROJECT -microarch:native -o:speed "-define:VERSION=$VERSION" @args
+	-out:build/$PROJECT.exe -microarch:native -o:speed "-define:VERSION=$VERSION" @args

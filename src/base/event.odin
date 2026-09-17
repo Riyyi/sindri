@@ -1,8 +1,6 @@
-package event
+package base
 
 import "core:fmt"
-
-import "sindri:input"
 
 // -----------------------------------------
 // Types
@@ -51,32 +49,32 @@ Joystick_Disconnect_Event :: struct {
 
 Key_Press_Event :: struct {
 	handled: bool,
-	key:     input.Key,
-	mods:    input.Mod_Set,
+	key:     Key,
+	mods:    Mod_Set,
 }
 
 Key_Release_Event :: struct {
 	handled: bool,
-	key:     input.Key,
-	mods:    input.Mod_Set,
+	key:     Key,
+	mods:    Mod_Set,
 }
 
 Key_Repeat_Event :: struct {
 	handled: bool,
-	key:     input.Key,
-	mods:    input.Mod_Set,
+	key:     Key,
+	mods:    Mod_Set,
 }
 
 Mouse_Button_Press_Event :: struct {
 	handled: bool,
-	button:  input.Mouse_Button,
-	mods:    input.Mod_Set,
+	button:  Mouse_Button,
+	mods:    Mod_Set,
 }
 
 Mouse_Button_Release_Event :: struct {
 	handled: bool,
-	button:  input.Mouse_Button,
-	mods:    input.Mod_Set,
+	button:  Mouse_Button,
+	mods:    Mod_Set,
 }
 
 Mouse_Position_Event :: struct {

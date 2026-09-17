@@ -1,12 +1,10 @@
-package hot_reload
+package base
 
 import "core:c"
 import "core:dynlib"
 import "core:fmt"
 import "core:os"
 import "core:time"
-
-import "sindri:core"
 
 when ODIN_OS == .Windows {
 	LIB_EXT :: ".dll"
@@ -42,7 +40,7 @@ Game_API :: struct {
 	memory_free:       proc(),
 	memory_size:       proc() -> int,
 	memory_set:        proc(mem: rawptr),
-	settings:          proc() -> core.Settings,
+	settings:          proc() -> Settings,
 	init_once:         proc(),
 	init:              proc(),
 	update:            proc(_: f32),

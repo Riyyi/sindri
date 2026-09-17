@@ -6,7 +6,7 @@ import "core:slice"
 
 import "wgpu:wgpu"
 
-import "sindri:core"
+import "sindri:base"
 
 // -----------------------------------------
 // Variables
@@ -33,7 +33,7 @@ state: struct {
 // -----------------------------------------
 // Constructor/destructor
 
-instance_init :: proc(settings: core.Settings) {
+instance_init :: proc(settings: base.Settings) {
 	state.ctx = context
 
 	wgpu.SetLogCallback(log_callback, nil)

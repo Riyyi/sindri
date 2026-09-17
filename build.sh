@@ -21,6 +21,8 @@ mkdir -p build
 # Game.dll
 odin build game/ -show-timings \
 	-collection:sindri=src \
+	-collection:gram=vendor/gram/src \
+	-collection:wgpu=vendor \
 	-build-mode:dynamic \
 	-out:build/game_tmp -microarch:native -define:VERSION="$VERSION-debug" -debug "$@"
 

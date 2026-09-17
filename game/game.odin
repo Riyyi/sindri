@@ -1,9 +1,9 @@
 package game
 
-import "sindri:input"
 import "core:time"
 import "core:fmt"
 
+import "sindri:base"
 import "sindri:core"
 
 // -----------------------------------------
@@ -40,12 +40,12 @@ memory_set :: proc(mem: rawptr) {
 }
 
 @(export)
-settings :: proc() -> core.Settings {
-	return core.Settings {
+settings :: proc() -> base.Settings {
+	return base.Settings {
 		width = 960,
 		height = 540,
 		title = "WGPU Native Triangle",
-		mode = core.WindowMode.Windowed,
+		mode = base.WindowMode.Windowed,
 		refresh = 60,
 		vsync = true,
 	}
@@ -68,7 +68,7 @@ init :: proc() {
 update :: proc(dt: f32) {
 	fmt.println("dt:", dt)
 
-	if input.key_state(.Key_Escape) == .Press {
+	if core.key_state(.Key_Escape) == .Press {
 		g.should_close = true
 	}
 }
@@ -91,10 +91,10 @@ should_close :: proc() -> bool {
 
 @(export)
 force_reload :: proc() -> bool {
-	return input.key_state(.Key_F5) == .Press
+	return core.key_state(.Key_F5) == .Press
 }
 
 @(export)
 force_restart :: proc() -> bool {
-	return input.key_state(.Key_F6) == .Press
+	return core.key_state(.Key_F6) == .Press
 }

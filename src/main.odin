@@ -3,7 +3,7 @@ package sindri
 import "core:fmt"
 import "core:time"
 
-import "sindri:hot_reload"
+import "sindri:base"
 import "sindri:platform"
 
 VERSION :: #config(VERSION, "dev")
@@ -14,10 +14,10 @@ main :: proc() {
 	fmt.println("hello world!")
 
 	// Hot reload development functionality
-	hr, err := hot_reload.hot_reload_init()
-	defer hot_reload.hot_reload_destroy(&hr)
+	hr, err := base.hot_reload_init()
+	defer base.hot_reload_destroy(&hr)
 
-	api := hot_reload.active_lib(&hr)
+	api := base.active_lib(&hr)
 	settings := api.settings()
 
 	// Initialize Window
@@ -35,7 +35,7 @@ main :: proc() {
 	gt: f64 = 0
 	dt: f32
 
-	for !platform.os_should_close() && !hot_reload.should_close(&hr) {
+	for !platform.os_should_close() && !base.should_close(&hr) {
 		start := time.tick_now()
 
 		platform.os_poll_events()
@@ -47,7 +47,7 @@ main :: proc() {
 		gt += f64(dt)
 
 		// Hot reload
-		api, err = hot_reload.reload_game_lib(&hr)
+		api, err = base.reload_game_lib(&hr)
 		if err != nil do break
 	}
 

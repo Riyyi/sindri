@@ -7,9 +7,7 @@ import "vendor:glfw"
 import "wgpu:wgpu"
 import "wgpu:wgpu/glfwglue"
 
-import "sindri:core"
-import "sindri:event"
-import "sindri:input"
+import "sindri:base"
 
 // -----------------------------------------
 // Types
@@ -21,7 +19,7 @@ OS :: struct {
 // -----------------------------------------
 // Constructor / destructor
 
-os_init :: proc(settings: core.Settings) {
+os_init :: proc(settings: base.Settings) {
 	if !glfw.Init() {
 		panic("[glfw] init failure")
 	}
@@ -48,11 +46,6 @@ os_init :: proc(settings: core.Settings) {
 	glfw.SetCursorPosCallback(state.os.window, cursor_pos_callback)
 	glfw.SetScrollCallback(state.os.window, scroll_callback)
 	glfw.SetJoystickCallback(joystick_callback)
-
-	// Register input functions
-	input.key_state = key_state
-	input.mouse_button_state = mouse_button_state
-	input.mouse_position = mouse_position
 }
 
 os_destroy :: proc() {
@@ -63,7 +56,7 @@ os_destroy :: proc() {
 // -----------------------------------------
 // Public functions
 
-os_set_monitor :: proc(settings: core.Settings) {
+os_set_monitor :: proc(settings: base.Settings) {
 	monitor := glfw.GetPrimaryMonitor()
 	x_pos: i32
 	y_pos: i32
@@ -140,47 +133,44 @@ os_get_surface :: proc(instance: wgpu.Instance) -> wgpu.Surface {
 	return glfwglue.GetSurface(instance, state.os.window)
 }
 
-// -----------------------------------------
-// Private functions
-
-@(private = "file")
-key_state :: proc(key: input.Key) -> input.Action {
+os_key_state :: proc(key: base.Key) -> base.Action {
 	return input_action(glfw.GetKey(state.os.window, i32(key)))
 }
 
-@(private = "file")
-mouse_button_state :: proc(button: input.Mouse_Button) -> input.Action {
+os_mouse_button_state :: proc(button: base.Mouse_Button) -> base.Action {
 	return input_action(glfw.GetMouseButton(state.os.window, i32(button)))
 }
 
-@(private = "file")
-mouse_position :: proc() -> (x_pos: f32, y_pos: f32) {
+os_mouse_position :: proc() -> (x_pos: f32, y_pos: f32) {
 	x_pos_f64, y_pos_64 := glfw.GetCursorPos(state.os.window)
 	return f32(x_pos_f64), f32(y_pos_64)
 }
 
+// -----------------------------------------
+// Private functions
+
 @(private = "file")
-input_action :: proc(action: i32) -> input.Action {
-	if action == glfw.RELEASE do return input.Action.Release
-	else if action == glfw.PRESS do return input.Action.Press
-	else if action == glfw.REPEAT do return input.Action.Repeat
+input_action :: proc(action: i32) -> base.Action {
+	if action == glfw.RELEASE do return base.Action.Release
+	else if action == glfw.PRESS do return base.Action.Press
+	else if action == glfw.REPEAT do return base.Action.Repeat
 	when ODIN_DEBUG do panic("[glfw] unknown action")
 	return .None
 }
 
 @(private = "file")
-input_key :: proc(key: i32) -> input.Key {
-	return input.Key(key) // values match
+input_key :: proc(key: i32) -> base.Key {
+	return base.Key(key) // values match
 }
 
 @(private = "file")
-input_mod_set :: proc(mods: i32) -> (set: input.Mod_Set) {
-	return transmute(input.Mod_Set)i8(mods & 0x3f) // values match bit position
+input_mod_set :: proc(mods: i32) -> (set: base.Mod_Set) {
+	return transmute(base.Mod_Set)i8(mods & 0x3f) // values match bit position
 }
 
 @(private = "file")
-input_mouse_button :: proc(button: i32) -> input.Mouse_Button {
-	return input.Mouse_Button(button) // values match
+input_mouse_button :: proc(button: i32) -> base.Mouse_Button {
+	return base.Mouse_Button(button) // values match
 }
 
 // Error callback
@@ -194,7 +184,7 @@ error_callback :: proc "c" (error: i32, description: cstring) {
 @(private = "file")
 window_close_callback :: proc "c" (window: glfw.WindowHandle) {
 	context = state.ctx
-	event.on_event(event.Window_Close_Event{})
+	base.on_event(base.Window_Close_Event{})
 } // GLFWwindowclosefun
 
 // Window resize callback
@@ -211,24 +201,24 @@ key_callback :: proc "c" (
 ) {
 	context = state.ctx
 	if action == glfw.PRESS {
-		event.on_event(
-			event.Key_Press_Event {
+		base.on_event(
+			base.Key_Press_Event {
 				key = input_key(key),
 				mods = input_mod_set(mods),
 			},
 		)
 	}
 	if action == glfw.RELEASE {
-		event.on_event(
-			event.Key_Release_Event {
+		base.on_event(
+			base.Key_Release_Event {
 				key = input_key(key),
 				mods = input_mod_set(mods),
 			},
 		)
 	}
 	if action == glfw.REPEAT {
-		event.on_event(
-			event.Key_Repeat_Event {
+		base.on_event(
+			base.Key_Repeat_Event {
 				key = input_key(key),
 				mods = input_mod_set(mods),
 			},
@@ -244,16 +234,16 @@ mouse_button_callback :: proc "c" (
 ) {
 	context = state.ctx
 	if action == glfw.PRESS {
-		event.on_event(
-			event.Mouse_Button_Press_Event {
+		base.on_event(
+			base.Mouse_Button_Press_Event {
 				button = input_mouse_button(button),
 				mods = input_mod_set(mods),
 			},
 		)
 	}
 	if action == glfw.RELEASE {
-		event.on_event(
-			event.Mouse_Button_Release_Event {
+		base.on_event(
+			base.Mouse_Button_Release_Event {
 				button = input_mouse_button(button),
 				mods = input_mod_set(mods),
 			},
@@ -268,8 +258,8 @@ cursor_pos_callback :: proc "c" (
 	x_pos, y_pos: f64,
 ) {
 	context = state.ctx
-	event.on_event(
-		event.Mouse_Position_Event{x_pos = f32(x_pos), y_pos = f32(y_pos)},
+	base.on_event(
+		base.Mouse_Position_Event{x_pos = f32(x_pos), y_pos = f32(y_pos)},
 	)
 } // GLFWcursorposfun
 
@@ -280,8 +270,8 @@ scroll_callback :: proc "c" (
 	x_offset, y_offset: f64,
 ) {
 	context = state.ctx
-	event.on_event(
-		event.Mouse_Scroll_Event {
+	base.on_event(
+		base.Mouse_Scroll_Event {
 			x_offset = f32(x_offset),
 			y_offset = f32(y_offset),
 		},
@@ -293,9 +283,9 @@ scroll_callback :: proc "c" (
 joystick_callback :: proc "c" (id, connected: i32) {
 	context = state.ctx
 	if connected == glfw.CONNECTED {
-		event.on_event(event.Joystick_Connect_Event{id = id})
+		base.on_event(base.Joystick_Connect_Event{id = id})
 	} else {
-		event.on_event(event.Joystick_Disconnect_Event{id = id})
+		base.on_event(base.Joystick_Disconnect_Event{id = id})
 	}
 } // GLFWjoystickfun
 

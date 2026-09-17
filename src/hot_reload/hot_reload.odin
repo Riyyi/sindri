@@ -1,5 +1,6 @@
 package hot_reload
 
+import "core:c"
 import "core:dynlib"
 import "core:fmt"
 import "core:os"
@@ -132,6 +133,20 @@ load_game_lib :: proc(api: ^Game_API) -> bool {
 			"error: failed initializing symbols: {0}",
 			dynlib.last_error(),
 		)
+	} else {
+		// Odin's shared libraries don't register a constructor, so the lib's
+		// runtime init (@init procs like os.stdout setup) never runs on load.
+		// Call it explicitly.
+		// Windows doesn't need this: its dynamic build exports DllMain, which
+		// the OS calls on load and which runs _startup_runtime itself.
+		when ODIN_OS != .Windows {
+			Entry :: #type proc "c" () -> c.int
+			entry_ptr, entry_ok := dynlib.symbol_address(
+				api.lib,
+				"_odin_entry_point",
+			)
+			if entry_ok do (transmute(Entry)entry_ptr)()
+		}
 	}
 
 	return ok

@@ -9,7 +9,7 @@ import "sindri:core"
 // -----------------------------------------
 
 Game_Memory :: struct {
-	should_close: bool
+	should_close: bool,
 }
 
 g: ^Game_Memory
@@ -61,6 +61,7 @@ init :: proc() {
 	fmt.println("hello from .dll!")
 
 	g = new(Game_Memory)
+	memory_set(g)
 }
 
 @(export)
@@ -90,12 +91,10 @@ should_close :: proc() -> bool {
 
 @(export)
 force_reload :: proc() -> bool {
-	// TODO: read keypress
-	return false
+	return input.key_state(.Key_F5) == .Press
 }
 
 @(export)
 force_restart :: proc() -> bool {
-	// TODO: read keypress
-	return false
+	return input.key_state(.Key_F6) == .Press
 }

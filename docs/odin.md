@@ -4,6 +4,11 @@ This document contains specifics about the workings of the Odin programming
 language, dynamic linking and state management design patterns. These are
 tested and validated findings, for continued reference by me.
 
+## Compiler
+
+Odin's compiler is demand-driver: a procedure's body is only semantically
+analyzed when the proc is actually referenced.
+
 ## Dynamic Library Memory
 
 When a program loads in a dynamic library, what happens with package globals?

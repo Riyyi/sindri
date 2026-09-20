@@ -24,7 +24,7 @@ odin build game/ -show-timings \
 	-collection:gram=vendor/gram/src \
 	-collection:wgpu=vendor \
 	-build-mode:dynamic \
-	-out:build/game_tmp -microarch:native -define:VERSION="$VERSION-debug" -debug "$@"
+	-out:build/game_tmp -microarch:native -o:minimal -use-separate-modules -define:VERSION="$VERSION-debug" -debug "$@"
 
 # Need to use a temp file on Linux/macOS because it first writes an empty file,
 # which the engine will load before it is actually fully written.
@@ -49,7 +49,7 @@ if [ "$OPTION" = "debug" ]; then
 		-collection:sindri=src \
 		-collection:gram=vendor/gram/src \
 		-collection:wgpu=vendor \
-		-out:build/$PROJECT -microarch:native -use-separate-modules -define:VERSION="$VERSION-debug" -debug "$@"
+		-out:build/$PROJECT -microarch:native -o:minimal -use-separate-modules -define:VERSION="$VERSION-debug" -debug "$@"
 	exit 0
 fi
 

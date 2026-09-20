@@ -17,6 +17,12 @@ main :: proc() {
 	hr, err := base.hot_reload_init()
 	defer base.hot_reload_destroy(&hr)
 
+	// Event system
+	base.event_bus_init()
+	defer base.event_bus_destroy()
+
+	base.event_subscribe(base.Key_Press_Event, test)
+
 	api := base.active_lib(&hr)
 	settings := api.settings()
 
@@ -39,6 +45,7 @@ main :: proc() {
 		start := time.tick_now()
 
 		platform.os_poll_events()
+		base.drain_event_queue()
 		api.update(dt)
 
 		platform.frame(dt)
@@ -52,4 +59,9 @@ main :: proc() {
 	}
 
 	api.destroy()
+}
+
+test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {
+	fmt.println("main: @@@@@@@@@@@", e)
+	return true
 }

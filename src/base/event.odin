@@ -259,7 +259,7 @@ event_unsubscribe_raw :: proc(
 	ls, ok := event_bus.listeners[T]
 	if !ok do return
 
-	for i, l in ls {
+	for l, i in ls {
 		if l.callback == callback && l.user_ptr == user_ptr {
 			ordered_remove(&event_bus.listeners[T], i) // preserve subscription order
 			return

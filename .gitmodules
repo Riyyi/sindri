@@ -1,3 +1,6 @@
-[submodule "sindri/vendor/gram"]
+[submodule "vendor/brokkr"]
+	path = vendor/brokkr
+	url = https://codeberg.org/chivvii/brokkr.git
+[submodule "vendor/gram"]
 	path = vendor/gram
 	url = https://github.com/riyyi/gram.git

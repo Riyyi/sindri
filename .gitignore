@@ -2,7 +2,12 @@
 
 .DS_Store
 
+build
+build.exe
+build.exe.old
+build.old
+
 # Directories
 
-build
-vendor/wgpu
+out/
+vendor/wgpu/

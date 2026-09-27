@@ -14,7 +14,7 @@ when ODIN_OS == .Windows {
 	LIB_EXT :: ".so"
 }
 
-GAME_LIB_DIR :: "build/"
+GAME_LIB_DIR :: "out/"
 GAME_LIB_PATH :: GAME_LIB_DIR + "game" + LIB_EXT
 
 // -----------------------------------------

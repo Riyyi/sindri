@@ -10,14 +10,18 @@ Game engine.
 
 ### Dependencies
 
+- `git`
 - `odin`
-- `sh` a POSIX compatible shell
+- `unzip` on macOS or Linux
 
 ### Building
 
 ```sh
-./build.sh
-./build.sh debug
+./build.sh              # debug game and engine (default)
+./build.sh -debug       # debug game and engine
+./build.sh -release     # build game and engine
+./build.sh -run         # run game
+./build.sh -fmt         # format sources
 ```
 
 ## Contributing
@@ -35,7 +39,7 @@ vendor
 - miniaudio
 - microui (temp)
 - box3d?
-- build.sh -> build.odin
+- build.sh -> bootstrap shim for `compile/build.odin`
 
 ## Hot Reload
 

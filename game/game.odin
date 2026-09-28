@@ -1,7 +1,7 @@
 package game
 
-import "core:time"
 import "core:fmt"
+import "core:time"
 
 import "sindri:base"
 import "sindri:core"

@@ -11,7 +11,7 @@ VERSION :: #config(VERSION, "dev")
 // -----------------------------------------
 
 main :: proc() {
-	fmt.println("hello world!")
+	fmt.println("hello world!", VERSION)
 
 	// Hot reload development functionality
 	hr, err := base.hot_reload_init()

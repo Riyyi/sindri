@@ -7,7 +7,8 @@ tested and validated findings, for continued reference by me.
 ## Compiler
 
 Odin's compiler is demand-driver: a procedure's body is only semantically
-analyzed when the proc is actually referenced.
+analyzed when the proc is actually referenced. They are syntactically checked
+always.
 
 ## Dynamic Library Memory
 
@@ -67,3 +68,26 @@ Sindri Engine:
                                                               - Event
                                                               - Keycodes
 ```
+
+## Logging strategy
+
+From the docs:
+
+> While it is ok for simple apps to use the core:fmt package, libraries and
+> complex apps should prefer the core:log package. By using the implicit logger
+> library and application authors allow the caller to decide how to process log
+> messages.
+
+## Naming Conventions
+
+From core.odin:
+
+> In general, Ada_Case for types and snake_case for values
+>
+> - Package Name:       snake_case (but prefer single word)
+> - Import Name:        snake_case (but prefer single word)
+> - Types:              Ada_Case
+> - Enum Values:        Ada_Case
+> - Procedures:         snake_case
+> - Local Variables:    snake_case
+> - Constant Variables: SCREAMING_SNAKE_CASE

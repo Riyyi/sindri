@@ -3,6 +3,7 @@ package sindri
 import "core:fmt"
 import "core:time"
 
+import "game:game"
 import "sindri:base"
 import "sindri:platform"
 
@@ -14,8 +15,13 @@ main :: proc() {
 	fmt.println("hello world!", VERSION)
 
 	// Hot reload development functionality
-	hr, err := base.hot_reload_init()
-	defer base.hot_reload_destroy(&hr)
+	base.hot_reload_init(VERSION)
+	defer base.hot_reload_destroy()
+
+	// Load game API & settings
+	api := game.api()
+	defer api.destroy()
+	settings := api.settings()
 
 	// Event system
 	base.event_bus_init()
@@ -23,8 +29,9 @@ main :: proc() {
 
 	base.event_subscribe(base.Key_Press_Event, test)
 
-	api := base.active_lib(&hr)
-	settings := api.settings()
+	// Listen for OS signals (SIGINT, SIGTERM)
+	platform.signals_init()
+	defer platform.signals_destroy()
 
 	// Initialize Window
 	platform.os_init(settings)
@@ -36,29 +43,41 @@ main :: proc() {
 	defer platform.instance_destroy()
 
 	api.init_once()
+
+	base.read_snapshot()
+
 	api.init()
 
-	gt: f64 = 0
-	dt: f32
+	dt: f64
+	gt: f64
+	st: f64
 
-	for !platform.os_should_close() && !base.should_close(&hr) {
+	for !api.should_close() &&
+	    !platform.os_should_close() &&
+	    !base.should_close {
+
 		start := time.tick_now()
 
 		platform.os_poll_events()
 		base.drain_event_queue()
-		api.update(dt)
+		api.update(cast(f32)dt)
+		base.write_snapshot()
 
-		platform.frame(dt)
+		platform.frame()
+		api.render()
 
-		dt = f32(time.duration_seconds(time.tick_since(start)))
-		gt += f64(dt)
+		dt = time.duration_seconds(time.tick_since(start))
+		gt += dt
+		st += dt
 
-		// Hot reload
-		api, err = base.reload_game_lib(&hr)
-		if err != nil do break
+		if st > 5 {
+			st -= 5
+			base.set_write_full_snapshot()
+		}
+
+		if api.force_reload() do base.force_reload()
+		if api.force_restart() do base.force_restart()
 	}
-
-	api.destroy()
 }
 
 test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {

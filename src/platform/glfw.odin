@@ -1,5 +1,6 @@
 package platform
 
+import "base:intrinsics"
 import "core:fmt"
 import "core:strings"
 import "vendor:glfw"
@@ -113,7 +114,8 @@ os_set_callback_proc :: proc(window: rawptr) {
 }
 
 os_should_close :: proc() -> bool {
-	return bool(glfw.WindowShouldClose(state.os.window))
+	window_close := bool(glfw.WindowShouldClose(state.os.window))
+	return window_close || intrinsics.atomic_load(&quit_signal_received)
 }
 
 os_set_should_close :: proc(val: bool) {

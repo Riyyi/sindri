@@ -1,231 +1,302 @@
 package base
 
-import "core:c"
-import "core:dynlib"
+import "base:runtime"
+import "core:crypto/hash"
 import "core:fmt"
+import "core:mem"
 import "core:os"
+import "core:strings"
 import "core:time"
 
-when ODIN_OS == .Windows {
-	LIB_EXT :: ".dll"
-} else when ODIN_OS == .Darwin {
-	LIB_EXT :: ".dylib"
-} else {
-	LIB_EXT :: ".so"
-}
+SNAPSHOT_NAME :: "snapshot"
+SNAPSHOT_EXTENSION :: "sndr"
 
-GAME_LIB_DIR :: "out/"
-GAME_LIB_PATH :: GAME_LIB_DIR + "game" + LIB_EXT
+MAGIC_STRING :: 0x72646E73 // "rdns" -> "sndr" in little endian
+HOT_RELOAD_VERSION :: 1
+APP_VERSION_SIZE :: 4 + time.MIN_YYYY_DATE_LEN + 8 + 6 // example: `dev-2026-09-23-a4084b3-debug`
 
 // -----------------------------------------
+// Types
 
+@(private)
+Snapshot_Header :: struct #packed #all_or_none {
+	magic_string: u32,
+	version:      u16, // spec of the snapshot
+	app_version:  [APP_VERSION_SIZE]u8,
+	region_count: u32,
+}
+
+@(private)
+Region_Header :: struct #packed #all_or_none {
+	name_size: u32,
+	data_size: u32,
+}
+
+@(private)
+Memory_Region :: struct {
+	ptr_location: rawptr,
+	// TODO: How do we do hash compare without having to hash current memory every frame?
+	digest:       []u8, // hash of this region in last snapshot
+}
+
+@(private)
 Hot_Reload :: struct {
-	loaded_libs: [dynamic]Game_API,
-}
-
-Hot_Reload_Error :: enum u8 {
-	None                 = 0,
-	Load_Game_Lib_Failed = 1,
-	Unimplemented        = 127,
-	Okay                 = None,
-}
-
-Error :: union #shared_nil {
-	Hot_Reload_Error,
-}
-
-Game_API :: struct {
-	lib:               dynlib.Library,
-	memory:            proc() -> rawptr,
-	memory_free:       proc(),
-	memory_size:       proc() -> int,
-	memory_set:        proc(mem: rawptr),
-	settings:          proc() -> Settings,
-	init_once:         proc(),
-	init:              proc(),
-	update:            proc(_: f32),
-	render:            proc(),
-	destroy:           proc(),
-	should_close:      proc() -> bool,
-	force_reload:      proc() -> bool,
-	force_restart:     proc() -> bool,
-	modification_time: time.Time,
-	api_version:       int, // iteration of the game lib
+	allocator:           runtime.Allocator,
+	snapshot_path:       string,
+	snapshot_header:     Snapshot_Header,
+	region_headers:      map[string]Region_Header, // hash of name:size
+	regions:             map[string]Memory_Region, // hash of name:size
+	write_full_snapshot: bool,
 }
 
 // -----------------------------------------
+// Variables
 
-hot_reload_init :: proc() -> (hr: Hot_Reload, error: Error) {
-	api: Game_API
-
-	api_ok := load_game_lib(&api)
-	if !api_ok {
-		fmt.println("error: failed to load Game API")
-		return {}, .Load_Game_Lib_Failed
-	}
-
-	hr.loaded_libs = make([dynamic]Game_API, 0, 0, context.allocator)
-	append(&hr.loaded_libs, api)
-
-	return hr, nil
-}
-
-hot_reload_destroy :: proc(state: ^Hot_Reload) {
-	for &api in state.loaded_libs {
-		unload_game_lib(&api)
-	}
-
-	delete(state.loaded_libs)
-}
+@(private)
+hr: Hot_Reload
 
 // -----------------------------------------
+// Constructor & destructor
 
-active_lib :: proc(hr: ^Hot_Reload) -> ^Game_API {
-	return &hr.loaded_libs[len(hr.loaded_libs) - 1]
-}
-
-should_close :: proc(hr: ^Hot_Reload) -> bool {
-	api := active_lib(hr)
-	if api.lib == nil do return true
-	return api.should_close()
-}
-
-copy_lib :: proc(to: string) -> bool {
-	copy_err := os.copy_file(to, GAME_LIB_PATH)
-	if copy_err != nil {
-		fmt.printfln(
-			"error: failed to copy {0} to {1}: {2:v}",
-			GAME_LIB_PATH,
-			to,
-			copy_err,
-		)
-		return false
-	}
-
-	return true
-}
-
-// Load game lib symbols
-load_game_lib :: proc(api: ^Game_API) -> bool {
-	mod_time, mod_time_err := os.last_write_time_by_name(GAME_LIB_PATH)
-	if mod_time_err != os.ERROR_NONE {
-		fmt.printfln(
-			"error: failed getting last write time of {0}, error code: {1}",
-			GAME_LIB_PATH,
-			mod_time_err,
-		)
-		return false
-	}
-	api.modification_time = mod_time
-
-	lib_name := fmt.tprintf(
-		GAME_LIB_DIR + "game_{0}" + LIB_EXT,
-		api.api_version,
+hot_reload_init :: proc(
+	app_version: string,
+	allocator := context.allocator,
+) -> os.Error {
+	// Get snapshot path
+	out := os.get_executable_directory(allocator) or_return
+	defer delete(out, allocator)
+	snapshot_path := fmt.tprintf(
+		"%v/%v.%v",
+		out,
+		SNAPSHOT_NAME,
+		SNAPSHOT_EXTENSION,
 	)
-	copy_lib(lib_name) or_return
+	snapshot_path_cpy := strings.clone(snapshot_path, allocator)
 
-	// Match the names of the fields in Game_API to symbols in the game DLL
-	_, ok := dynlib.initialize_symbols(api, lib_name, "", "lib")
-	if !ok {
-		fmt.printfln(
-			"error: failed initializing symbols: {0}",
-			dynlib.last_error(),
-		)
-	} else {
-		// Odin's shared libraries don't register a constructor, so the lib's
-		// runtime init (@init procs like os.stdout setup) never runs on load.
-		// Call it explicitly.
-		// Windows doesn't need this: its dynamic build exports DllMain, which
-		// the OS calls on load and which runs _startup_runtime itself.
-		when ODIN_OS != .Windows {
-			Entry :: #type proc "c" () -> c.int
-			entry_ptr, entry_ok := dynlib.symbol_address(
-				api.lib,
-				"_odin_entry_point",
-			)
-			if entry_ok do (transmute(Entry)entry_ptr)()
-		}
+	// Copy version string
+	version: [APP_VERSION_SIZE]u8
+	n := min(len(app_version), APP_VERSION_SIZE)
+	copy(version[:n], app_version[:n])
+
+	hr = {
+		allocator = allocator,
+		snapshot_path = snapshot_path_cpy,
+		snapshot_header = {
+			magic_string = MAGIC_STRING,
+			version = HOT_RELOAD_VERSION,
+			app_version = version,
+			region_count = 0,
+		},
+		region_headers = make(map[string]Region_Header, 1, allocator), // initial capacity for nil checks
+		regions = make(map[string]Memory_Region, 1, allocator), // initial capacity for nil checks
+		write_full_snapshot = true,
 	}
 
-	return ok
+	return nil
 }
 
-// Unload game lib, used during full restarts
-unload_game_lib :: proc(api: ^Game_API) {
-	if api.lib != nil {
-		if !dynlib.unload_library(api.lib) {
-			fmt.eprintfln(
-				"error: failed unloading lib: {0}",
-				dynlib.last_error(),
-			)
-		}
+hot_reload_destroy :: proc() {
+	assert(
+		hr.region_headers != nil,
+		"[hot-reload] destroying uninitialized data",
+	)
+
+	assert(hr.regions != nil, "[hot-reload] destroying uninitialized data")
+
+	delete(hr.snapshot_path, hr.allocator)
+
+	for key, region in hr.region_headers do delete(key, hr.allocator)
+	for key, region in hr.regions {
+		if region.digest != nil do delete(region.digest, hr.allocator)
 	}
 
-	if os.remove(
-		   fmt.tprintf(GAME_LIB_DIR + "game_{0}" + LIB_EXT, api.api_version),
-	   ) !=
-	   nil {
-		fmt.printfln(
-			"error: failed to remove {0}game_{1}{2} copy",
-			GAME_LIB_DIR,
-			api.api_version,
-			LIB_EXT,
-		)
-	}
+	delete(hr.region_headers)
+	delete(hr.regions)
 }
 
-reload_game_lib :: proc(hr: ^Hot_Reload) -> (lib: ^Game_API, err: Error) {
-	api := active_lib(hr)
-	force_reload := api.force_reload()
-	force_restart := api.force_restart()
-	reload := force_reload || force_restart
+// -----------------------------------------
+// Public functions
 
-	lib_mod, lib_mod_err := os.last_write_time_by_name(GAME_LIB_PATH)
-	// TODO: Handle error
-	if lib_mod_err == os.ERROR_NONE && api.modification_time != lib_mod {
-		reload = true
+register_region :: proc(
+	name: string,
+	ptr_location: rawptr,
+	data_size: u32,
+) -> os.Error {
+	assert(hr.region_headers != nil, "[hot-reload] uninitialized")
+	assert(hr.regions != nil, "[hot-reload] uninitialized")
+	assert(ptr_location != nil, "[hot_reload] invalid location")
+	assert(data_size > 0, "[hot_reload] invalid type size")
+
+	hash := fmt.tprintf("%v:%d", name, data_size)
+	assert(!(hash in hr.regions), "[hot_reload] double registration")
+	hash_cpy := strings.clone(hash, hr.allocator)
+	hr.region_headers[hash_cpy] = Region_Header {
+		name_size = cast(u32)len(name),
+		data_size = data_size,
+	}
+	hr.regions[hash_cpy] = Memory_Region {
+		ptr_location = ptr_location,
 	}
 
-	if !reload do return api, nil
+	hr.snapshot_header.region_count += 1
 
-	new_api: Game_API
-	new_api.api_version = api.api_version + 1
-	new_api_ok := load_game_lib(&new_api)
-	if !new_api_ok {
-		fmt.println("error: failed to load Game API")
-		return nil, .Load_Game_Lib_Failed
+	hr.write_full_snapshot = true
+
+	return nil
+}
+
+read_snapshot :: proc() -> os.Error {
+	assert(hr.region_headers != nil, "[hot-reload] uninitialized")
+	assert(hr.regions != nil, "[hot-reload] uninitialized")
+
+	if !os.exists(hr.snapshot_path) {
+		hr.write_full_snapshot = true
+		return nil
 	}
 
-	force_restart = force_restart || api.memory_size() != new_api.memory_size()
+	snapshot := os.open(hr.snapshot_path, {.Read}) or_return
+	defer os.close(snapshot)
 
-	if !force_restart {
-		// This does the normal hot reload
+	offset: i64
 
-		// Note that we don't unload the old game APIs because that
-		// would unload the lib. The lib can contain stored info
-		// such as string literals. The old libs are only unloaded
-		// on a full reset or on shutdown.
-		memory := api.memory()
-		new_api.memory_set(memory)
-	} else {
-		// This does a full reset. That's basically like opening and
-		// closing the game, without having to restart the executable.
-		//
-		// You end up in here if the game requests a full reset OR
-		// if the size of the game memory has changed. That would
-		// probably lead to a crash anyways.
+	// Read snapshot header
+	snapshot_header: Snapshot_Header
+	header_bytes := mem.ptr_to_bytes(&snapshot_header)
+	os.read_at(snapshot, header_bytes, offset) or_return
+	offset += size_of(Snapshot_Header)
+	assert(
+		snapshot_header.magic_string == MAGIC_STRING,
+		"[hot-reload] unknown filetype",
+	)
+	assert(
+		snapshot_header.version == HOT_RELOAD_VERSION,
+		"[hot-reload] incompatible snapshot version",
+	)
 
-		api.memory_free()
+	region_header: Region_Header
+	for i in 0 ..< snapshot_header.region_count {
 
-		for &g in hr.loaded_libs {
-			unload_game_lib(&g)
+		// Read region header
+		header_bytes := mem.ptr_to_bytes(&region_header)
+		os.read_at(snapshot, header_bytes, offset) or_return
+		offset += size_of(Region_Header)
+
+		// Read region name
+		name_bytes := make([]byte, region_header.name_size, hr.allocator)
+		defer delete(name_bytes, hr.allocator)
+		os.read_at(snapshot, name_bytes, offset) or_return
+		offset += cast(i64)region_header.name_size
+		name := transmute(string)name_bytes[:]
+
+		// Read region data
+		data_bytes := make([]byte, region_header.data_size, hr.allocator)
+		defer delete(data_bytes, hr.allocator)
+		os.read_at(snapshot, data_bytes, offset) or_return
+		offset += cast(i64)region_header.data_size
+
+		// Compare currently registered region with the loaded region
+		key := fmt.tprintf("%v:%d", name, region_header.data_size)
+		new_region_header, ok := hr.region_headers[key]
+		if !ok || region_header.data_size != new_region_header.data_size {
+			hr.write_full_snapshot = true
+			fmt.println("[hot-reload] bail loading region:", name)
+			continue
 		}
-		clear(&hr.loaded_libs)
 
-		new_api.init()
+		// Create digest and store in registered regions
+		digest := hash.hash_bytes(
+			hash.Algorithm.SHA256,
+			data_bytes,
+			hr.allocator,
+		)
+		region := &hr.regions[key]
+		region.digest = digest
+
+		// Write snapshot memory to the memory region
+		dest := mem.byte_slice(
+			region.ptr_location,
+			cast(int)region_header.data_size,
+		)
+		copy(dest, data_bytes)
 	}
 
-	append(&hr.loaded_libs, new_api)
+	return nil
+}
 
-	return active_lib(hr), nil
+// Next write will be a full memory snapshot
+set_write_full_snapshot :: proc() {
+	hr.write_full_snapshot = true
+}
+
+// Write memory snapshot, save on writes by diff-ing
+write_snapshot :: proc() -> os.Error {
+	assert(hr.region_headers != nil, "[hot-reload] uninitialized")
+	assert(hr.regions != nil, "[hot-reload] uninitialized")
+
+	snapshot: ^os.File
+	if hr.write_full_snapshot || !os.exists(hr.snapshot_path) {
+		snapshot = os.create(hr.snapshot_path) or_return
+	} else {
+		snapshot = os.open(hr.snapshot_path, {.Read, .Write}) or_return
+	}
+	defer os.close(snapshot)
+
+	offset: i64
+
+	// Write header
+	if hr.write_full_snapshot {
+		header_bytes := mem.ptr_to_bytes(&hr.snapshot_header)
+		n := os.write_at(snapshot, header_bytes, offset) or_return
+	}
+	offset += size_of(Snapshot_Header)
+
+	for key, &region in hr.regions {
+		header := hr.region_headers[key]
+
+		// Write region header
+		if hr.write_full_snapshot {
+			header_bytes := mem.ptr_to_bytes(&header)
+			os.write_at(snapshot, header_bytes, offset) or_return
+		}
+		offset += size_of(Region_Header)
+
+		// Write region name
+		if hr.write_full_snapshot {
+			name := key[:header.name_size] // get name from first part of the hash
+			name_bytes := transmute([]byte)name
+			os.write_at(snapshot, name_bytes, offset) or_return
+		}
+		offset += cast(i64)header.name_size
+
+		// Write region data (if bytes differ)
+		data_bytes := mem.byte_slice(region.ptr_location, header.data_size)
+		digest := hash.hash_bytes(
+			hash.Algorithm.SHA256,
+			data_bytes,
+			hr.allocator,
+		)
+		if hr.write_full_snapshot || mem.compare(digest, region.digest) != 0 {
+			delete(region.digest, hr.allocator)
+			region.digest = digest
+			os.write_at(snapshot, data_bytes, offset) or_return
+		} else {
+			delete(digest, hr.allocator)
+		}
+		offset += cast(i64)header.data_size
+	}
+
+	hr.write_full_snapshot = false
+
+	return nil
+}
+
+force_reload :: proc() {
+	should_close = true
+}
+
+force_restart :: proc() -> os.Error {
+	should_close = true
+	os.remove(hr.snapshot_path) or_return
+
+	return nil
 }

@@ -96,7 +96,7 @@ resize :: proc "c" () {
 	wgpu.SurfaceConfigure(state.surface, &state.config)
 }
 
-frame :: proc "c" (dt: f32) {
+frame :: proc "c" () {
 	context = state.ctx
 
 	surface_texture := wgpu.SurfaceGetCurrentTexture(state.surface)

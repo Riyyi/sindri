@@ -32,8 +32,6 @@ PROJECT_NAME :: "sindri"
 BUILD_DIRECTORY :: "out/"
 
 GAME_SRC_DIR :: "game/"
-GAME_LIB_PATH :: BUILD_DIRECTORY + "game" + LIB_EXT
-GAME_LIB_TMP_PATH :: BUILD_DIRECTORY + "game_tmp" + LIB_EXT
 
 ENGINE_DIR :: "src/"
 ENGINE_OUTPUT :: BUILD_DIRECTORY + PROJECT_NAME
@@ -47,6 +45,7 @@ Options :: struct {
 	debug:        bool `args:"optional"            usage:"Build project in debug-mode."`,
 	release:      bool `args:"optional"            usage:"Build project in release-mode."`,
 	run:          bool `args:"optional"            usage:"Run project."`,
+	hot_reload:   bool `args:"optional"            usage:"Hot-reload project."`,
 	wgpu_init:    bool `args:"optional"            usage:"Prepare wgpu-native."`,
 	wgpu_version: string `args:"optional"          usage:"Override the wgpu release version to init."`,
 	fmt:          bool `args:"optional"            usage:"Run odinfmt."`,
@@ -77,6 +76,7 @@ main :: proc() {
 	if opts.debug do build_project(true, opts.overflow[:])
 	if opts.release do build_project(false, opts.overflow[:])
 	if opts.run do run_project(opts.overflow[:])
+	if opts.hot_reload do hot_reload(!opts.release, opts.overflow[:])
 	if opts.wgpu_init do wgpu_init(opts.wgpu_version)
 	if opts.fmt do format_source()
 	if opts.pre_commit do pre_commit()
@@ -91,16 +91,11 @@ main :: proc() {
 // Build project
 
 // Build the game library ('game/') and the engine ('src/')
-build_project :: proc(debug: bool, odin_extra_args: []string) {
+build_project :: proc(debug: bool, extra_args: []string) {
 	version := project_version()
 
 	// Setup compiled wgpu binary
 	wgpu_init()
-
-	// ----------------------------------------
-	// Game compile
-
-	build_game(debug, version, odin_extra_args)
 
 	// ----------------------------------------
 	// Engine compile
@@ -111,7 +106,7 @@ build_project :: proc(debug: bool, odin_extra_args: []string) {
 		return
 	}
 
-	build_engine(debug, version, odin_extra_args)
+	build_engine(debug, version, extra_args)
 }
 
 // Shared builder between game/engine
@@ -124,6 +119,7 @@ build_common :: proc(
 	b := brokkr.builder_make()
 	brokkr.build(&b, dir)
 	brokkr.append(&b, "-show-timings")
+	brokkr.collection(&b, "game", ".")
 	brokkr.collection(&b, PROJECT_NAME, "src")
 	brokkr.collection(&b, "gram", "vendor/gram/src")
 	brokkr.collection(&b, "wgpu", "vendor")
@@ -144,24 +140,6 @@ build_common :: proc(
 	return b
 }
 
-// Build the game as a dynamic library loaded by the engine
-build_game :: proc(debug: bool, version: string, extra_args: []string) {
-	b := build_common(GAME_SRC_DIR, debug, version, extra_args)
-	defer brokkr.builder_destroy(&b)
-	brokkr.mode(&b, .Dynamic)
-	// Use a temp file because it first writes an empty file, which the engine
-	// would load before it is actually fully written
-	brokkr.out(&b, GAME_LIB_TMP_PATH)
-	if err := brokkr.execute(&b); err != nil {
-		os.exit(1)
-	}
-
-	if !os.is_file(GAME_LIB_TMP_PATH) {
-		die("build produced no game lib %q", GAME_LIB_TMP_PATH)
-	}
-	os.rename(GAME_LIB_TMP_PATH, GAME_LIB_PATH)
-}
-
 // Build the engine executable
 build_engine :: proc(debug: bool, version: string, extra_args: []string) {
 	b := build_common(ENGINE_DIR, debug, version, extra_args)
@@ -174,8 +152,7 @@ build_engine :: proc(debug: bool, version: string, extra_args: []string) {
 
 run_project :: proc(extra_args: []string) {
 	// Build project if it wasnt already
-	if !os.exists(ENGINE_OUTPUT) ||
-	   !os.exists(GAME_LIB_PATH) { build_project(true, {}) }
+	if !os.exists(output_path(ENGINE_OUTPUT)) do build_project(true, {})
 
 	cmd := []string{output_path(ENGINE_OUTPUT)}
 	line := slice.concatenate(
@@ -204,6 +181,34 @@ run_project :: proc(extra_args: []string) {
 	}
 
 	os.exit(res.exit_code)
+}
+
+hot_reload :: proc(debug: bool, extra_args: []string) {
+	if engine_is_running() {
+		process := output_path(PROJECT_NAME)
+		when ODIN_OS == .Windows {
+			// Ask process to shut down gracefully (equivalent to SIGTERM)
+			_, ok, _ := exec([]string{"taskkill", "/IM", process + ".exe"})
+			if !ok {
+				die("hot reload: failed to terminate running %s", process)
+			}
+		} else {
+			_, ok, _ := exec([]string{"pkill", "-TERM", "-x", process})
+			if !ok {
+				die(
+					"hot reload: failed to send SIGTERM to running %s",
+					process,
+				)
+			}
+		}
+
+		// Wait for process to terminate
+		for engine_is_running() {
+			time.sleep(time.Millisecond * 20)
+		}
+	}
+
+	run_project(extra_args)
 }
 
 // -----------------------------------------

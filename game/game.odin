@@ -7,39 +7,42 @@ import "sindri:base"
 import "sindri:core"
 
 // -----------------------------------------
+// Types
 
 Game_Memory :: struct {
 	should_close: bool,
 }
 
-g: ^Game_Memory
+Test_Memory :: struct {
+	asd: int,
+	qwe: int,
+}
 
 // -----------------------------------------
+// Variables
 
-@(export)
-memory :: proc() -> rawptr {
-	return g
+g: Game_Memory
+t: Test_Memory
+
+game_api := core.Game_API {
+	settings      = settings,
+	init_once     = init_once,
+	init          = init,
+	update        = update,
+	render        = render,
+	destroy       = destroy,
+	should_close  = should_close,
+	force_reload  = force_reload,
+	force_restart = force_restart,
 }
 
-@(export)
-memory_free :: proc() {
-	free(g)
+// -----------------------------------------
+// Public functions
+
+api :: proc() -> ^core.Game_API {
+	return &game_api
 }
 
-@(export)
-memory_size :: proc() -> int {
-	return size_of(Game_Memory)
-}
-
-@(export)
-memory_set :: proc(mem: rawptr) {
-	g = (^Game_Memory)(mem)
-
-	// Here you can also set your own global variables. A good idea is to make
-	// your global variables into pointers that point to something inside `g`.
-}
-
-@(export)
 settings :: proc() -> base.Settings {
 	return base.Settings {
 		width = 960,
@@ -51,36 +54,40 @@ settings :: proc() -> base.Settings {
 	}
 }
 
-@(export)
 init_once :: proc() {
 	fmt.println("init once")
+
+	base.register_region("game_memory", &g, size_of(Game_Memory))
+	base.register_region("test_memory", &t, size_of(Test_Memory))
 }
 
-@(export)
 init :: proc() {
 	fmt.println("hello from .dll!")
 
-	g = new(Game_Memory)
-	memory_set(g)
+	g.should_close = false
 }
 
-@(export)
 update :: proc(dt: f32) {
 	fmt.println("dt:", dt)
 
 	if core.key_state(.Key_Escape) == .Press {
 		g.should_close = true
 	}
+
+	if core.key_state(.Key_F5) == .Press do t.asd = 555
+	if core.key_state(.Key_F6) == .Press do t.asd = 666
 }
 
-@(export)
+render :: proc() {  }
+
 destroy :: proc() {
 	fmt.println("bye")
+
+	fmt.println(t.asd, t.qwe)
 }
 
 start := time.tick_now()
 
-@(export)
 should_close :: proc() -> bool {
 	elapsed := time.tick_since(start)
 	seconds := time.duration_seconds(elapsed)
@@ -89,12 +96,10 @@ should_close :: proc() -> bool {
 	return g.should_close
 }
 
-@(export)
 force_reload :: proc() -> bool {
 	return core.key_state(.Key_F5) == .Press
 }
 
-@(export)
 force_restart :: proc() -> bool {
 	return core.key_state(.Key_F6) == .Press
 }

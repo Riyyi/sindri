@@ -1,7 +1,8 @@
 {
     "collections": [
+        { "name": "game",   "path": "." },
         { "name": "sindri", "path": "src" },
         { "name": "gram",   "path": "vendor/gram/src" },
-        { "name": "wgpu",    "path": "vendor" }
+        { "name": "wgpu",   "path": "vendor" }
     ]
 }

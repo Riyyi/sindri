@@ -158,8 +158,6 @@ on_event :: proc(data: Event_Data) {
 drain_event_queue :: proc() {
 	assert(event_bus.queue != nil)
 
-	fmt.println("toby!")
-
 	for &event in event_bus.queue {
 
 		#partial switch e in event.data {

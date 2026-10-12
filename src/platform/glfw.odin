@@ -21,9 +21,7 @@ OS :: struct {
 // Constructor / destructor
 
 os_init :: proc(settings: base.Settings) {
-	if !glfw.Init() {
-		panic("[glfw] init failure")
-	}
+	assert(cast(bool)glfw.Init(), "[glfw] init failure")
 
 	// Set window properties
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API) // do not create OpenGL context

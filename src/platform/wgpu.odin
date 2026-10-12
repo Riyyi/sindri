@@ -9,6 +9,16 @@ import "wgpu:wgpu"
 import "sindri:base"
 
 // -----------------------------------------
+// Types
+
+Vec3 :: [3]f32
+
+Vertex :: struct #align (4) {
+	pos: Vec3,
+	col: Vec3,
+}
+
+// -----------------------------------------
 // Variables
 
 // Instance -> Surface -> Adapter -> Device -> Queue
@@ -28,6 +38,10 @@ state: struct {
 	// ----------------------------------------
 	capabilities:    wgpu.SurfaceCapabilities,
 	vsync:           bool,
+	// ----------------------------------------
+	vertex_buffer:   wgpu.Buffer,
+	index_buffer:    wgpu.Buffer,
+	index_count:     u32,
 }
 
 // -----------------------------------------
@@ -64,6 +78,9 @@ instance_init :: proc(settings: base.Settings) {
 }
 
 instance_destroy :: proc() {
+	wgpu.BufferRelease(state.vertex_buffer)
+	wgpu.BufferRelease(state.index_buffer)
+
 	wgpu.RenderPipelineRelease(state.pipeline)
 	wgpu.PipelineLayoutRelease(state.pipeline_layout)
 	wgpu.ShaderModuleRelease(state.module)
@@ -137,18 +154,36 @@ frame :: proc "c" () {
 				loadOp = .Clear,
 				storeOp = .Store,
 				depthSlice = wgpu.DEPTH_SLICE_UNDEFINED,
-				clearValue = {0, 1, 0, 1},
+				clearValue = {55 / 255.0, 73 / 255.0, 73 / 255.0, 1},
 			},
 		},
 	)
 
 	wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, state.pipeline)
-	wgpu.RenderPassEncoderDraw(
+
+	wgpu.RenderPassEncoderSetVertexBuffer(
 		render_pass_encoder,
-		vertexCount = 3,
-		instanceCount = 1,
-		firstVertex = 0,
-		firstInstance = 0,
+		slot = 0,
+		buffer = state.vertex_buffer,
+		offset = 0, // offset into buffer to start from
+		size = wgpu.WHOLE_SIZE, // x bytes of the buffer to use
+	)
+
+	wgpu.RenderPassEncoderSetIndexBuffer(
+		render_pass_encoder,
+		buffer = state.index_buffer,
+		format = .Uint16, // type of each element in the buffer
+		offset = 0, // offset into buffer to start from
+		size = wgpu.WHOLE_SIZE, // x bytes of the buffer to use
+	)
+
+	wgpu.RenderPassEncoderDrawIndexed(
+		render_pass_encoder,
+		state.index_count,
+		instanceCount = 1, // draw x instance(s) of the mesh
+		firstIndex = 0, // offset into buffer to start from, useful for drawing sub-mesh
+		baseVertex = 0, // value added to index before vertex fetch, useful for multi-mesh vertex buffers
+		firstInstance = 0, // number to start instance index from
 	)
 
 	wgpu.RenderPassEncoderEnd(render_pass_encoder)
@@ -208,17 +243,31 @@ on_device :: proc "c" (
 	}
 	wgpu.SurfaceConfigure(state.surface, &state.config)
 
+	// ----------------------------------------
+	// Compile shader
+
 	shader :: `
+	struct VertexInput {
+		@location(0) pos: vec3<f32>,
+		@location(1) col: vec3<f32>,
+	};
+
+	struct VertexOutput {
+		@builtin(position) position: vec4<f32>,
+		@location(0) col: vec3<f32>,
+	};
+
 	@vertex
-	fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
-		let x = f32(i32(in_vertex_index) - 1);
-		let y = f32(i32(in_vertex_index & 1u) * 2 - 1);
-		return vec4<f32>(x, y, 0.0, 1.0);
+	fn vs_main(in: VertexInput) -> VertexOutput {
+		var out: VertexOutput;
+		out.position = vec4<f32>(in.pos, 1.0);
+		out.col = in.col;
+		return out;
 	}
 
 	@fragment
-	fn fs_main() -> @location(0) vec4<f32> {
-		return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+	fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+		return vec4<f32>(in.col, 1.0);
 	}`
 
 	state.module = wgpu.DeviceCreateShaderModule(
@@ -231,12 +280,46 @@ on_device :: proc "c" (
 		},
 	)
 
+	// ----------------------------------------
+	// Buffer shape
+
+	// Fill vertex/index buffers
+	fill_buffers_with_quad()
+
+	vertex_attributes := [?]wgpu.VertexAttribute {
+		{
+			format = .Float32x3,
+			offset = cast(u64)offset_of(Vertex, pos),
+			shaderLocation = 0,
+		},
+		{
+			format = .Float32x3,
+			offset = cast(u64)offset_of(Vertex, col),
+			shaderLocation = 1,
+		},
+	}
+
+	vertex_layout := wgpu.VertexBufferLayout {
+		stepMode       = .Vertex,
+		arrayStride    = size_of(Vertex),
+		attributeCount = len(vertex_attributes),
+		attributes     = raw_data(vertex_attributes[:]),
+	}
+
+	// ----------------------------------------
+	// Render pipeline
+
 	state.pipeline_layout = wgpu.DeviceCreatePipelineLayout(state.device, &{})
 	state.pipeline = wgpu.DeviceCreateRenderPipeline(
 		state.device,
 		&{
 			layout = state.pipeline_layout,
-			vertex = {module = state.module, entryPoint = "vs_main"},
+			vertex = {
+				module = state.module,
+				entryPoint = "vs_main",
+				bufferCount = 1,
+				buffers = &vertex_layout,
+			},
 			fragment = &{
 				module = state.module,
 				entryPoint = "fs_main",
@@ -289,4 +372,27 @@ pick_present_mode :: proc(vsync: bool) -> wgpu.PresentMode {
 	}
 
 	return .Fifo // Vsync On
+}
+
+@(private = "file")
+fill_buffers_with_quad :: proc() {
+	vertices := [?]Vertex {
+		{pos = {-0.5, -0.5, 0}, col = {1, 0, 0}}, // 0 bottom-left   red
+		{pos = {+0.5, -0.5, 0}, col = {0, 1, 0}}, // 1 bottom-right  green
+		{pos = {+0.5, +0.5, 0}, col = {0, 0, 1}}, // 2 top-right     blue
+		{pos = {-0.5, +0.5, 0}, col = {1, 1, 0}}, // 3 top-left      yellow
+	}
+	indices := [?]u16{0, 1, 2, 2, 3, 0}
+
+	state.vertex_buffer = wgpu.DeviceCreateBufferWithData(
+		state.device,
+		&{label = "quad vertices", usage = {.Vertex}},
+		vertices[:],
+	)
+	state.index_buffer = wgpu.DeviceCreateBufferWithData(
+		state.device,
+		&{label = "quad indices", usage = {.Index}},
+		indices[:],
+	)
+	state.index_count = cast(u32)len(indices)
 }

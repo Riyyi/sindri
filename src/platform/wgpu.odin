@@ -2,6 +2,8 @@ package platform
 
 import "base:runtime"
 import "core:fmt"
+import "core:math"
+import "core:math/linalg"
 import "core:slice"
 
 import "wgpu:wgpu"
@@ -18,30 +20,38 @@ Vertex :: struct #align (4) {
 	col: Vec3,
 }
 
+Camera_Uniform :: struct {
+	mvp: linalg.Matrix4f32,
+}
+
 // -----------------------------------------
 // Variables
 
 // Instance -> Surface -> Adapter -> Device -> Queue
 state: struct {
-	ctx:             runtime.Context,
-	os:              OS,
+	ctx:               runtime.Context,
+	os:                OS,
 	// ----------------------------------------
-	instance:        wgpu.Instance, // entry point: creates Adapter, Device and Surface
-	surface:         wgpu.Surface, // handle to a presentable surface (e.g. a window)
-	adapter:         wgpu.Adapter, // handle to physical GPU
-	device:          wgpu.Device, // open connection to a GPU
-	queue:           wgpu.Queue, // handle to command queue on a Device
-	config:          wgpu.SurfaceConfiguration,
-	module:          wgpu.ShaderModule,
-	pipeline_layout: wgpu.PipelineLayout,
-	pipeline:        wgpu.RenderPipeline,
+	instance:          wgpu.Instance, // entry point: creates Adapter, Device and Surface
+	surface:           wgpu.Surface, // handle to a presentable surface (e.g. a window)
+	adapter:           wgpu.Adapter, // handle to physical GPU
+	device:            wgpu.Device, // open connection to a GPU
+	queue:             wgpu.Queue, // handle to command queue on a Device
+	config:            wgpu.SurfaceConfiguration,
+	module:            wgpu.ShaderModule,
+	pipeline_layout:   wgpu.PipelineLayout,
+	pipeline:          wgpu.RenderPipeline,
 	// ----------------------------------------
-	capabilities:    wgpu.SurfaceCapabilities,
-	vsync:           bool,
+	capabilities:      wgpu.SurfaceCapabilities,
+	vsync:             bool,
 	// ----------------------------------------
-	vertex_buffer:   wgpu.Buffer,
-	index_buffer:    wgpu.Buffer,
-	index_count:     u32,
+	uniform_buffer:    wgpu.Buffer,
+	bind_group_layout: wgpu.BindGroupLayout,
+	bind_group:        wgpu.BindGroup,
+	// ----------------------------------------
+	vertex_buffer:     wgpu.Buffer,
+	index_buffer:      wgpu.Buffer,
+	index_count:       u32,
 }
 
 // -----------------------------------------
@@ -78,8 +88,12 @@ instance_init :: proc(settings: base.Settings) {
 }
 
 instance_destroy :: proc() {
+	wgpu.BufferRelease(state.uniform_buffer)
 	wgpu.BufferRelease(state.vertex_buffer)
 	wgpu.BufferRelease(state.index_buffer)
+
+	wgpu.BindGroupRelease(state.bind_group)
+	wgpu.BindGroupLayoutRelease(state.bind_group_layout)
 
 	wgpu.RenderPipelineRelease(state.pipeline)
 	wgpu.PipelineLayoutRelease(state.pipeline_layout)
@@ -111,6 +125,9 @@ resize :: proc "c" () {
 
 	state.config.width, state.config.height = os_get_framebuffer_size()
 	wgpu.SurfaceConfigure(state.surface, &state.config)
+
+	// The projection depends on aspect, so rebuild and re-upload the matrix
+	upload_camera(state.queue, state.uniform_buffer, framebuffer_aspect())
 }
 
 frame :: proc "c" () {
@@ -160,6 +177,14 @@ frame :: proc "c" () {
 	)
 
 	wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, state.pipeline)
+
+	// The camera's MVP matrix: group 0
+	wgpu.RenderPassEncoderSetBindGroup(
+		render_pass_encoder,
+		0,
+		state.bind_group,
+		dynamicOffsets = nil, // reuse bind group af different byte offsets, per binding
+	)
 
 	wgpu.RenderPassEncoderSetVertexBuffer(
 		render_pass_encoder,
@@ -247,6 +272,12 @@ on_device :: proc "c" (
 	// Compile shader
 
 	shader :: `
+	struct Uniforms {
+		mvp: mat4x4<f32>,
+	};
+
+	@group(0) @binding(0) var<uniform> u: Uniforms;
+
 	struct VertexInput {
 		@location(0) pos: vec3<f32>,
 		@location(1) col: vec3<f32>,
@@ -260,7 +291,7 @@ on_device :: proc "c" (
 	@vertex
 	fn vs_main(in: VertexInput) -> VertexOutput {
 		var out: VertexOutput;
-		out.position = vec4<f32>(in.pos, 1.0);
+		out.position = u.mvp * vec4<f32>(in.pos, 1.0);
 		out.col = in.col;
 		return out;
 	}
@@ -277,6 +308,37 @@ on_device :: proc "c" (
 				sType = .ShaderSourceWGSL,
 				code = shader,
 			},
+		},
+	)
+
+	// ----------------------------------------
+	// Camera uniform: buffer, then the baked layout it will be read through
+
+	state.uniform_buffer = wgpu.DeviceCreateBuffer(
+		state.device,
+		&{
+			label = "camera uniform",
+			usage = {.Uniform, .CopyDst}, // shader reads, queue writes
+			size  = cast(u64)size_of(Camera_Uniform),
+		},
+	)
+
+	camera_layout_entries := [?]wgpu.BindGroupLayoutEntry {
+		{
+			binding = 0, // slot 0
+			visibility = {.Vertex},
+			buffer = {
+				type = .Uniform,
+				minBindingSize = cast(u64)size_of(Camera_Uniform),
+			},
+		},
+	}
+	state.bind_group_layout = wgpu.DeviceCreateBindGroupLayout(
+		state.device,
+		&{
+			label = "camera layout",
+			entryCount = len(camera_layout_entries),
+			entries = raw_data(camera_layout_entries[:]),
 		},
 	)
 
@@ -309,10 +371,19 @@ on_device :: proc "c" (
 	// ----------------------------------------
 	// Render pipeline
 
-	state.pipeline_layout = wgpu.DeviceCreatePipelineLayout(state.device, &{})
+	camera_group_layouts := [1]wgpu.BindGroupLayout{state.bind_group_layout}
+	state.pipeline_layout = wgpu.DeviceCreatePipelineLayout(
+		state.device,
+		&{
+			bindGroupLayoutCount = len(camera_group_layouts),
+			bindGroupLayouts = raw_data(camera_group_layouts[:]),
+		},
+	)
+
 	state.pipeline = wgpu.DeviceCreateRenderPipeline(
 		state.device,
 		&{
+			label = "pipeline",
 			layout = state.pipeline_layout,
 			vertex = {
 				module = state.module,
@@ -333,6 +404,30 @@ on_device :: proc "c" (
 			multisample = {count = 1, mask = 0xFFFFFFFF},
 		},
 	)
+
+	// ----------------------------------------
+	// Camera bind group
+
+	bind_group_entries := [?]wgpu.BindGroupEntry {
+		{
+			binding = 0, // slot 0
+			buffer  = state.uniform_buffer,
+			offset  = 0, // offset into buffer to start from
+			size    = cast(u64)size_of(Camera_Uniform),
+		},
+	}
+	state.bind_group = wgpu.DeviceCreateBindGroup(
+		state.device,
+		&{
+			label = "camera bind group",
+			layout = state.bind_group_layout,
+			entryCount = len(bind_group_entries),
+			entries = raw_data(bind_group_entries[:]),
+		},
+	)
+
+	// Initial upload of the matrix
+	upload_camera(state.queue, state.uniform_buffer, framebuffer_aspect())
 }
 
 @(private = "file")
@@ -395,4 +490,49 @@ fill_buffers_with_quad :: proc() {
 		indices[:],
 	)
 	state.index_count = cast(u32)len(indices)
+}
+
+@(private = "file")
+framebuffer_aspect :: proc() -> f32 {
+	width, height := os_get_framebuffer_size()
+	if height == 0 {
+		return 1
+	}
+	return cast(f32)width / cast(f32)height
+}
+
+// Perspective projection, WebGPU flavour
+@(private = "file")
+camera_perspective :: proc(
+	fovy_degrees, aspect, near, far: f32,
+) -> linalg.Matrix4f32 {
+	gl := linalg.matrix4_perspective(
+		fovy_degrees * math.PI / 180.0,
+		aspect,
+		near,
+		far,
+	)
+	// GL's clip space is [-1, 1] and WebGPU's clip space is [0, 1],
+	// so fold z with a remap: z' = 1/2 z + 1/2 w
+	remap := linalg.identity(linalg.Matrix4f32)
+	remap[2, 2] = 0.5
+	remap[2, 3] = 0.5
+	return remap * gl
+}
+
+@(private = "file")
+camera_mvp :: proc(aspect: f32) -> linalg.Matrix4f32 {
+	projection := camera_perspective(60, aspect, 0.1, 100)
+	view := linalg.matrix4_look_at_f32({0, 0.75, 2}, {0, 0, 0}, {0, 1, 0})
+	// model = identity: the quad lives at the origin, no pose of its own yet
+	return projection * view
+}
+
+@(private = "file")
+upload_camera :: proc(queue: wgpu.Queue, buffer: wgpu.Buffer, aspect: f32) {
+	uniforms := Camera_Uniform {
+		mvp = camera_mvp(aspect),
+	}
+	// bufferOffset = offset into buffer to start from
+	wgpu.QueueWriteBuffer(queue, buffer, 0, &uniforms, size_of(Camera_Uniform))
 }

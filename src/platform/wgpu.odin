@@ -29,29 +29,32 @@ Camera_Uniform :: struct {
 
 // Instance -> Surface -> Adapter -> Device -> Queue
 state: struct {
-	ctx:               runtime.Context,
-	os:                OS,
+	ctx:                runtime.Context,
+	os:                 OS,
 	// ----------------------------------------
-	instance:          wgpu.Instance, // entry point: creates Adapter, Device and Surface
-	surface:           wgpu.Surface, // handle to a presentable surface (e.g. a window)
-	adapter:           wgpu.Adapter, // handle to physical GPU
-	device:            wgpu.Device, // open connection to a GPU
-	queue:             wgpu.Queue, // handle to command queue on a Device
-	config:            wgpu.SurfaceConfiguration,
-	module:            wgpu.ShaderModule,
-	pipeline_layout:   wgpu.PipelineLayout,
-	pipeline:          wgpu.RenderPipeline,
+	instance:           wgpu.Instance, // entry point: creates Adapter, Device and Surface
+	surface:            wgpu.Surface, // handle to a presentable surface (e.g. a window)
+	adapter:            wgpu.Adapter, // handle to physical GPU
+	device:             wgpu.Device, // open connection to a GPU
+	queue:              wgpu.Queue, // handle to command queue on a Device
+	config:             wgpu.SurfaceConfiguration,
+	module:             wgpu.ShaderModule,
+	pipeline_layout:    wgpu.PipelineLayout,
+	pipeline:           wgpu.RenderPipeline,
 	// ----------------------------------------
-	capabilities:      wgpu.SurfaceCapabilities,
-	vsync:             bool,
+	capabilities:       wgpu.SurfaceCapabilities,
+	vsync:              bool,
 	// ----------------------------------------
-	uniform_buffer:    wgpu.Buffer,
-	bind_group_layout: wgpu.BindGroupLayout,
-	bind_group:        wgpu.BindGroup,
+	depth_texture:      wgpu.Texture,
+	depth_texture_view: wgpu.TextureView,
 	// ----------------------------------------
-	vertex_buffer:     wgpu.Buffer,
-	index_buffer:      wgpu.Buffer,
-	index_count:       u32,
+	uniform_buffer:     wgpu.Buffer,
+	bind_group_layout:  wgpu.BindGroupLayout,
+	bind_group:         wgpu.BindGroup,
+	// ----------------------------------------
+	vertex_buffer:      wgpu.Buffer,
+	index_buffer:       wgpu.Buffer,
+	index_count:        u32,
 }
 
 // -----------------------------------------
@@ -88,6 +91,9 @@ instance_init :: proc(settings: base.Settings) {
 }
 
 instance_destroy :: proc() {
+	wgpu.TextureViewRelease(state.depth_texture_view)
+	wgpu.TextureRelease(state.depth_texture)
+
 	wgpu.BufferRelease(state.uniform_buffer)
 	wgpu.BufferRelease(state.vertex_buffer)
 	wgpu.BufferRelease(state.index_buffer)
@@ -125,6 +131,8 @@ resize :: proc "c" () {
 
 	state.config.width, state.config.height = os_get_framebuffer_size()
 	wgpu.SurfaceConfigure(state.surface, &state.config)
+
+	create_depth_texture()
 
 	// The projection depends on aspect, so rebuild and re-upload the matrix
 	upload_camera(state.queue, state.uniform_buffer, framebuffer_aspect())
@@ -172,6 +180,12 @@ frame :: proc "c" () {
 				storeOp = .Store,
 				depthSlice = wgpu.DEPTH_SLICE_UNDEFINED,
 				clearValue = {55 / 255.0, 73 / 255.0, 73 / 255.0, 1},
+			},
+			depthStencilAttachment = &wgpu.RenderPassDepthStencilAttachment {
+				view = state.depth_texture_view,
+				depthLoadOp = .Clear,
+				depthStoreOp = .Store,
+				depthClearValue = 1.0,
 			},
 		},
 	)
@@ -267,6 +281,11 @@ on_device :: proc "c" (
 		alphaMode   = .Opaque,
 	}
 	wgpu.SurfaceConfigure(state.surface, &state.config)
+
+	// ----------------------------------------
+	// Depth buffer
+
+	create_depth_texture()
 
 	// ----------------------------------------
 	// Compile shader
@@ -402,6 +421,11 @@ on_device :: proc "c" (
 			},
 			primitive = {topology = .TriangleList},
 			multisample = {count = 1, mask = 0xFFFFFFFF},
+			depthStencil = &wgpu.DepthStencilState {
+				format = .Depth24Plus,
+				depthWriteEnabled = .True,
+				depthCompare = .Less,
+			},
 		},
 	)
 
@@ -469,15 +493,63 @@ pick_present_mode :: proc(vsync: bool) -> wgpu.PresentMode {
 	return .Fifo // Vsync On
 }
 
+// Depth buffer: same size as the surface, should get recreated on resize
+@(private = "file")
+create_depth_texture :: proc() {
+	if state.depth_texture != nil {
+		wgpu.TextureViewRelease(state.depth_texture_view)
+		wgpu.TextureRelease(state.depth_texture)
+	}
+
+	state.depth_texture = wgpu.DeviceCreateTexture(
+		state.device,
+		&{
+			label = "depth texture",
+			usage = {.RenderAttachment},
+			dimension = ._2D,
+			size = {
+				width = state.config.width,
+				height = state.config.height,
+				depthOrArrayLayers = 1,
+			},
+			format = .Depth24Plus,
+			mipLevelCount = 1,
+			sampleCount = 1,
+		},
+	)
+	state.depth_texture_view = wgpu.TextureCreateView(state.depth_texture, nil)
+}
+
 @(private = "file")
 fill_buffers_with_quad :: proc() {
 	vertices := [?]Vertex {
-		{pos = {-0.5, -0.5, 0}, col = {1, 0, 0}}, // 0 bottom-left   red
-		{pos = {+0.5, -0.5, 0}, col = {0, 1, 0}}, // 1 bottom-right  green
-		{pos = {+0.5, +0.5, 0}, col = {0, 0, 1}}, // 2 top-right     blue
-		{pos = {-0.5, +0.5, 0}, col = {1, 1, 0}}, // 3 top-left      yellow
+		// Near quad: z = 0, colourful, drawn first
+		{pos = {-0.4, -0.4, 0.0}, col = {1, 0, 0}}, // 0 bottom-left  red
+		{pos = {0.4, -0.4, 0.0}, col = {0, 1, 0}}, // 1 bottom-right green
+		{pos = {0.4, 0.4, 0.0}, col = {0, 0, 1}}, // 2 top-right    blue
+		{pos = {-0.4, 0.4, 0.0}, col = {1, 1, 0}}, // 3 top-left     yellow
+
+		// Far quad: z = -0.5, cyan, drawn second
+		{pos = {-0.8, -0.8, -0.5}, col = {0, 1, 1}}, // 4 bottom-left
+		{pos = {0.8, -0.8, -0.5}, col = {0, 1, 1}}, // 5 bottom-right
+		{pos = {0.8, 0.8, -0.5}, col = {0, 1, 1}}, // 6 top-right
+		{pos = {-0.8, 0.8, -0.5}, col = {0, 1, 1}}, // 7 top-left
 	}
-	indices := [?]u16{0, 1, 2, 2, 3, 0}
+
+	indices := [?]u16 {
+		0,
+		1,
+		2,
+		2,
+		3,
+		0, // near quad
+		4,
+		5,
+		6,
+		6,
+		7,
+		4, // far quad
+	}
 
 	state.vertex_buffer = wgpu.DeviceCreateBufferWithData(
 		state.device,

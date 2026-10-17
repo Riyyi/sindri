@@ -13,11 +13,13 @@ import "sindri:base"
 // -----------------------------------------
 // Types
 
+Vec2 :: [2]f32
 Vec3 :: [3]f32
 
 Vertex :: struct #align (4) {
 	pos: Vec3,
 	col: Vec3,
+	uv:  Vec2,
 }
 
 Camera_Uniform :: struct {
@@ -29,32 +31,36 @@ Camera_Uniform :: struct {
 
 // Instance -> Surface -> Adapter -> Device -> Queue
 state: struct {
-	ctx:                runtime.Context,
-	os:                 OS,
+	ctx:                  runtime.Context,
+	os:                   OS,
 	// ----------------------------------------
-	instance:           wgpu.Instance, // entry point: creates Adapter, Device and Surface
-	surface:            wgpu.Surface, // handle to a presentable surface (e.g. a window)
-	adapter:            wgpu.Adapter, // handle to physical GPU
-	device:             wgpu.Device, // open connection to a GPU
-	queue:              wgpu.Queue, // handle to command queue on a Device
-	config:             wgpu.SurfaceConfiguration,
-	module:             wgpu.ShaderModule,
-	pipeline_layout:    wgpu.PipelineLayout,
-	pipeline:           wgpu.RenderPipeline,
+	instance:             wgpu.Instance, // entry point: creates Adapter, Device and Surface
+	surface:              wgpu.Surface, // handle to a presentable surface (e.g. a window)
+	adapter:              wgpu.Adapter, // handle to physical GPU
+	device:               wgpu.Device, // open connection to a GPU
+	queue:                wgpu.Queue, // handle to command queue on a Device
+	config:               wgpu.SurfaceConfiguration,
+	module:               wgpu.ShaderModule,
+	pipeline_layout:      wgpu.PipelineLayout,
+	pipeline:             wgpu.RenderPipeline,
 	// ----------------------------------------
-	capabilities:       wgpu.SurfaceCapabilities,
-	vsync:              bool,
+	capabilities:         wgpu.SurfaceCapabilities,
+	vsync:                bool,
 	// ----------------------------------------
-	depth_texture:      wgpu.Texture,
-	depth_texture_view: wgpu.TextureView,
+	depth_texture:        wgpu.Texture,
+	depth_texture_view:   wgpu.TextureView,
 	// ----------------------------------------
-	uniform_buffer:     wgpu.Buffer,
-	bind_group_layout:  wgpu.BindGroupLayout,
-	bind_group:         wgpu.BindGroup,
+	uniform_buffer:       wgpu.Buffer,
+	bind_group_layout:    wgpu.BindGroupLayout,
+	bind_group:           wgpu.BindGroup,
 	// ----------------------------------------
-	vertex_buffer:      wgpu.Buffer,
-	index_buffer:       wgpu.Buffer,
-	index_count:        u32,
+	vertex_buffer:        wgpu.Buffer,
+	index_buffer:         wgpu.Buffer,
+	index_count:          u32,
+	// ----------------------------------------
+	diffuse_texture:      wgpu.Texture,
+	diffuse_texture_view: wgpu.TextureView,
+	diffuse_sampler:      wgpu.Sampler,
 }
 
 // -----------------------------------------
@@ -93,6 +99,10 @@ instance_init :: proc(settings: base.Settings) {
 instance_destroy :: proc() {
 	wgpu.TextureViewRelease(state.depth_texture_view)
 	wgpu.TextureRelease(state.depth_texture)
+
+	wgpu.SamplerRelease(state.diffuse_sampler)
+	wgpu.TextureViewRelease(state.diffuse_texture_view)
+	wgpu.TextureRelease(state.diffuse_texture)
 
 	wgpu.BufferRelease(state.uniform_buffer)
 	wgpu.BufferRelease(state.vertex_buffer)
@@ -296,15 +306,19 @@ on_device :: proc "c" (
 	};
 
 	@group(0) @binding(0) var<uniform> u: Uniforms;
+    @group(0) @binding(1) var t_diffuse: texture_2d<f32>;
+    @group(0) @binding(2) var s_diffuse: sampler;
 
 	struct VertexInput {
 		@location(0) pos: vec3<f32>,
 		@location(1) col: vec3<f32>,
+		@location(2) uv: vec2<f32>,
 	};
 
 	struct VertexOutput {
 		@builtin(position) position: vec4<f32>,
 		@location(0) col: vec3<f32>,
+		@location(1) uv: vec2<f32>,
 	};
 
 	@vertex
@@ -312,12 +326,13 @@ on_device :: proc "c" (
 		var out: VertexOutput;
 		out.position = u.mvp * vec4<f32>(in.pos, 1.0);
 		out.col = in.col;
+		out.uv = in.uv;
 		return out;
 	}
 
 	@fragment
 	fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-		return vec4<f32>(in.col, 1.0);
+		return textureSample(t_diffuse, s_diffuse, in.uv) * vec4<f32>(in.col, 1.0);
 	}`
 
 	state.module = wgpu.DeviceCreateShaderModule(
@@ -351,6 +366,20 @@ on_device :: proc "c" (
 				minBindingSize = cast(u64)size_of(Camera_Uniform),
 			},
 		},
+		{
+			binding = 1, // slot 1
+			visibility = {.Fragment},
+			texture = {
+				sampleType = .Float,
+				viewDimension = ._2D,
+				multisampled = false,
+			},
+		},
+		{
+			binding = 2, // slot 2
+			visibility = {.Fragment},
+			sampler = {type = .Filtering},
+		},
 	}
 	state.bind_group_layout = wgpu.DeviceCreateBindGroupLayout(
 		state.device,
@@ -360,6 +389,12 @@ on_device :: proc "c" (
 			entries = raw_data(camera_layout_entries[:]),
 		},
 	)
+
+	// ----------------------------------------
+	// Diffuse texture + sampler
+
+	state.diffuse_texture, state.diffuse_texture_view, state.diffuse_sampler =
+		create_diffuse_texture(state.device, state.queue)
 
 	// ----------------------------------------
 	// Buffer shape
@@ -377,6 +412,11 @@ on_device :: proc "c" (
 			format = .Float32x3,
 			offset = cast(u64)offset_of(Vertex, col),
 			shaderLocation = 1,
+		},
+		{
+			format = .Float32x2,
+			offset = cast(u64)offset_of(Vertex, uv),
+			shaderLocation = 2,
 		},
 	}
 
@@ -439,6 +479,8 @@ on_device :: proc "c" (
 			offset  = 0, // offset into buffer to start from
 			size    = cast(u64)size_of(Camera_Uniform),
 		},
+		{binding = 1, textureView = state.diffuse_texture_view},
+		{binding = 2, sampler = state.diffuse_sampler},
 	}
 	state.bind_group = wgpu.DeviceCreateBindGroup(
 		state.device,
@@ -524,16 +566,16 @@ create_depth_texture :: proc() {
 fill_buffers_with_quad :: proc() {
 	vertices := [?]Vertex {
 		// Near quad: z = 0, colourful, drawn first
-		{pos = {-0.4, -0.4, 0.0}, col = {1, 0, 0}}, // 0 bottom-left  red
-		{pos = {0.4, -0.4, 0.0}, col = {0, 1, 0}}, // 1 bottom-right green
-		{pos = {0.4, 0.4, 0.0}, col = {0, 0, 1}}, // 2 top-right    blue
-		{pos = {-0.4, 0.4, 0.0}, col = {1, 1, 0}}, // 3 top-left     yellow
+		{pos = {-0.4, -0.4, 0.0}, col = {1, 0, 0}, uv = {0, 1}}, // 0 bottom-left  red
+		{pos = {0.4, -0.4, 0.0}, col = {0, 1, 0}, uv = {1, 1}}, // 1 bottom-right green
+		{pos = {0.4, 0.4, 0.0}, col = {0, 0, 1}, uv = {1, 0}}, // 2 top-right    blue
+		{pos = {-0.4, 0.4, 0.0}, col = {1, 1, 0}, uv = {0, 0}}, // 3 top-left     yellow
 
 		// Far quad: z = -0.5, cyan, drawn second
-		{pos = {-0.8, -0.8, -0.5}, col = {0, 1, 1}}, // 4 bottom-left
-		{pos = {0.8, -0.8, -0.5}, col = {0, 1, 1}}, // 5 bottom-right
-		{pos = {0.8, 0.8, -0.5}, col = {0, 1, 1}}, // 6 top-right
-		{pos = {-0.8, 0.8, -0.5}, col = {0, 1, 1}}, // 7 top-left
+		{pos = {-0.8, -0.8, -0.5}, col = {0, 1, 1}, uv = {0, 1}}, // 4 bottom-left
+		{pos = {0.8, -0.8, -0.5}, col = {0, 1, 1}, uv = {1, 1}}, // 5 bottom-right
+		{pos = {0.8, 0.8, -0.5}, col = {0, 1, 1}, uv = {1, 0}}, // 6 top-right
+		{pos = {-0.8, 0.8, -0.5}, col = {0, 1, 1}, uv = {0, 0}}, // 7 top-left
 	}
 
 	indices := [?]u16 {
@@ -607,4 +649,76 @@ upload_camera :: proc(queue: wgpu.Queue, buffer: wgpu.Buffer, aspect: f32) {
 	}
 	// bufferOffset = offset into buffer to start from
 	wgpu.QueueWriteBuffer(queue, buffer, 0, &uniforms, size_of(Camera_Uniform))
+}
+
+// Test 256x256 checkerboard texture, uploaded once
+@(private = "file")
+create_diffuse_texture :: proc(
+	device: wgpu.Device,
+	queue: wgpu.Queue,
+) -> (
+	wgpu.Texture,
+	wgpu.TextureView,
+	wgpu.Sampler,
+) {
+	width, height: u32 = 256, 256
+	pixels := make([]u8, width * height * 4)
+	defer delete(pixels)
+
+	for y in 0 ..< height {
+		for x in 0 ..< width {
+			checker := ((x / 32) + (y / 32)) % 2 == 0
+			idx := (y * width + x) * 4
+			if checker {
+				pixels[idx + 0] = 240
+				pixels[idx + 1] = 240
+				pixels[idx + 2] = 240
+				pixels[idx + 3] = 255
+			} else {
+				pixels[idx + 0] = 64
+				pixels[idx + 1] = 64
+				pixels[idx + 2] = 64
+				pixels[idx + 3] = 255
+			}
+		}
+	}
+
+	texture := wgpu.DeviceCreateTexture(
+		device,
+		&{
+			label = "diffuse texture",
+			usage = {.TextureBinding, .CopyDst}, // shader samples, queue writes
+			dimension = ._2D,
+			size = {width = width, height = height, depthOrArrayLayers = 1},
+			format = .RGBA8Unorm,
+			mipLevelCount = 1,
+			sampleCount = 1,
+		},
+	)
+
+	// Upload texture to GPU
+	wgpu.QueueWriteTexture(
+		queue,
+		&{texture = texture, mipLevel = 0, origin = {0, 0, 0}, aspect = .All}, // destination
+		raw_data(pixels),
+		len(pixels),
+		&{offset = 0, bytesPerRow = width * 4, rowsPerImage = height}, // data layout
+		&{width = width, height = height, depthOrArrayLayers = 1}, // 3D extent
+	)
+
+	view := wgpu.TextureCreateView(texture, nil)
+
+	sampler := wgpu.DeviceCreateSampler(
+		device,
+		&{
+			addressModeU = .Repeat,
+			addressModeV = .Repeat,
+			magFilter = .Nearest,
+			minFilter = .Nearest,
+			mipmapFilter = .Nearest,
+			maxAnisotropy = 1,
+		},
+	)
+
+	return texture, view, sampler
 }

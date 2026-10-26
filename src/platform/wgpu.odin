@@ -316,40 +316,48 @@ on_device :: proc "c" (
 	// ----------------------------------------
 	// Compile shader
 
-	shader :: `
-	struct Uniforms {
-		mvp: mat4x4<f32>,
-	};
+	uniforms_struct := to_wgsl_struct(Camera_Uniform, "Uniforms")
+	defer delete(uniforms_struct)
+	vertex_input_struct := to_wgsl_struct(
+		Vertex,
+		"VertexInput",
+		locations = true,
+	)
+	defer delete(vertex_input_struct)
+
+	shader := fmt.tprintf(
+		`
+	%s
 
 	@group(0) @binding(0) var<uniform> u: Uniforms;
-    @group(0) @binding(1) var t_diffuse: texture_2d<f32>;
-    @group(0) @binding(2) var s_diffuse: sampler;
+	@group(0) @binding(1) var t_diffuse: texture_2d<f32>;
+	@group(0) @binding(2) var s_diffuse: sampler;
 
-	struct VertexInput {
-		@location(0) pos: vec3<f32>,
-		@location(1) col: vec3<f32>,
-		@location(2) uv: vec2<f32>,
-	};
+	%s
 
-	struct VertexOutput {
+	struct VertexOutput {{
 		@builtin(position) position: vec4<f32>,
 		@location(0) col: vec3<f32>,
 		@location(1) uv: vec2<f32>,
-	};
+	}};
 
 	@vertex
-	fn vs_main(in: VertexInput) -> VertexOutput {
+	fn vs_main(in: VertexInput) -> VertexOutput {{
 		var out: VertexOutput;
 		out.position = u.mvp * vec4<f32>(in.pos, 1.0);
 		out.col = in.col;
 		out.uv = in.uv;
 		return out;
-	}
+	}}
 
 	@fragment
-	fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+	fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {{
 		return textureSample(t_diffuse, s_diffuse, in.uv) * vec4<f32>(in.col, 1.0);
-	}`
+	}}
+	`,
+		uniforms_struct,
+		vertex_input_struct,
+	)
 
 	state.module = wgpu.DeviceCreateShaderModule(
 		state.device,
@@ -415,30 +423,14 @@ on_device :: proc "c" (
 	// ----------------------------------------
 	// Buffer shape
 
-	vertex_attributes := [?]wgpu.VertexAttribute {
-		{
-			format = .Float32x3,
-			offset = cast(u64)offset_of(Vertex, pos),
-			shaderLocation = 0,
-		},
-		{
-			format = .Float32x3,
-			offset = cast(u64)offset_of(Vertex, col),
-			shaderLocation = 1,
-		},
-		{
-			format = .Float32x2,
-			offset = cast(u64)offset_of(Vertex, uv),
-			shaderLocation = 2,
-		},
-	}
+	vertex_attributes := to_vertex_attributes(Vertex)
 
 	vertex_layout := wgpu.VertexBufferLayout {
-		stepMode       = .Vertex,
-		arrayStride    = size_of(Vertex),
-		attributeCount = len(vertex_attributes),
-		attributes     = raw_data(vertex_attributes[:]),
-	}
+			stepMode       = .Vertex,
+			arrayStride    = size_of(Vertex),
+			attributeCount = len(vertex_attributes),
+			attributes     = raw_data(vertex_attributes),
+		}
 
 	// ----------------------------------------
 	// Render pipeline

@@ -5,6 +5,7 @@ import "core:time"
 
 import "game:game"
 import "sindri:base"
+import "sindri:core"
 import "sindri:platform"
 
 VERSION :: #config(VERSION, "dev")
@@ -41,6 +42,7 @@ main :: proc() {
 	// Initialize GPU resources
 	platform.instance_init(settings)
 	defer platform.instance_destroy()
+	load_test_model()
 
 	api.init_once()
 
@@ -83,4 +85,14 @@ main :: proc() {
 test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {
 	fmt.println("main: @@@@@@@@@@@", e)
 	return true
+}
+
+// Load model from disk and upload it
+load_test_model :: proc() {
+	vertices, indices, model_ok := core.load_obj_model("assets/suzanne.obj")
+	if !model_ok do fmt.panicf("[main] could not load model")
+	defer delete(vertices)
+	defer delete(indices)
+
+	platform.fill_buffers_with_model(vertices, indices)
 }

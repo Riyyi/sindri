@@ -4,6 +4,7 @@ import "base:runtime"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:os"
 import "core:slice"
 
 import "wgpu:wgpu"
@@ -19,7 +20,7 @@ Vec3 :: [3]f32
 Vertex :: struct #align (4) {
 	pos: Vec3,
 	col: Vec3,
-	uv:  Vec2,
+	uv:  Vec2, // texture coordinate
 }
 
 Camera_Uniform :: struct {
@@ -245,6 +246,21 @@ frame :: proc "c" () {
 	wgpu.SurfacePresent(state.surface)
 }
 
+// Upload arbitrary vertex/index data to GPU buffers
+fill_buffers_with_model :: proc(vertices: []Vertex, indices: []u16) {
+	state.vertex_buffer = wgpu.DeviceCreateBufferWithData(
+		state.device,
+		&{label = "model vertices", usage = {.Vertex}},
+		vertices,
+	)
+	state.index_buffer = wgpu.DeviceCreateBufferWithData(
+		state.device,
+		&{label = "model indices", usage = {.Index}},
+		indices,
+	)
+	state.index_count = cast(u32)len(indices)
+}
+
 // -----------------------------------------
 // Private functions
 
@@ -398,9 +414,6 @@ on_device :: proc "c" (
 
 	// ----------------------------------------
 	// Buffer shape
-
-	// Fill vertex/index buffers
-	fill_buffers_with_quad()
 
 	vertex_attributes := [?]wgpu.VertexAttribute {
 		{
@@ -563,50 +576,6 @@ create_depth_texture :: proc() {
 }
 
 @(private = "file")
-fill_buffers_with_quad :: proc() {
-	vertices := [?]Vertex {
-		// Near quad: z = 0, colourful, drawn first
-		{pos = {-0.4, -0.4, 0.0}, col = {1, 0, 0}, uv = {0, 1}}, // 0 bottom-left  red
-		{pos = {0.4, -0.4, 0.0}, col = {0, 1, 0}, uv = {1, 1}}, // 1 bottom-right green
-		{pos = {0.4, 0.4, 0.0}, col = {0, 0, 1}, uv = {1, 0}}, // 2 top-right    blue
-		{pos = {-0.4, 0.4, 0.0}, col = {1, 1, 0}, uv = {0, 0}}, // 3 top-left     yellow
-
-		// Far quad: z = -0.5, cyan, drawn second
-		{pos = {-0.8, -0.8, -0.5}, col = {0, 1, 1}, uv = {0, 1}}, // 4 bottom-left
-		{pos = {0.8, -0.8, -0.5}, col = {0, 1, 1}, uv = {1, 1}}, // 5 bottom-right
-		{pos = {0.8, 0.8, -0.5}, col = {0, 1, 1}, uv = {1, 0}}, // 6 top-right
-		{pos = {-0.8, 0.8, -0.5}, col = {0, 1, 1}, uv = {0, 0}}, // 7 top-left
-	}
-
-	indices := [?]u16 {
-		0,
-		1,
-		2,
-		2,
-		3,
-		0, // near quad
-		4,
-		5,
-		6,
-		6,
-		7,
-		4, // far quad
-	}
-
-	state.vertex_buffer = wgpu.DeviceCreateBufferWithData(
-		state.device,
-		&{label = "quad vertices", usage = {.Vertex}},
-		vertices[:],
-	)
-	state.index_buffer = wgpu.DeviceCreateBufferWithData(
-		state.device,
-		&{label = "quad indices", usage = {.Index}},
-		indices[:],
-	)
-	state.index_count = cast(u32)len(indices)
-}
-
-@(private = "file")
 framebuffer_aspect :: proc() -> f32 {
 	width, height := os_get_framebuffer_size()
 	if height == 0 {
@@ -638,7 +607,7 @@ camera_perspective :: proc(
 camera_mvp :: proc(aspect: f32) -> linalg.Matrix4f32 {
 	projection := camera_perspective(60, aspect, 0.1, 100)
 	view := linalg.matrix4_look_at_f32({0, 0.75, 2}, {0, 0, 0}, {0, 1, 0})
-	// model = identity: the quad lives at the origin, no pose of its own yet
+	// model = identity: the loader already centered the model at the origin
 	return projection * view
 }
 

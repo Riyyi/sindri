@@ -14,15 +14,6 @@ import "sindri:base"
 // -----------------------------------------
 // Types
 
-Vec2 :: [2]f32
-Vec3 :: [3]f32
-
-Vertex :: struct #align (4) {
-	pos: Vec3,
-	col: Vec3,
-	uv:  Vec2, // texture coordinate
-}
-
 Camera_Uniform :: struct {
 	mvp: linalg.Matrix4f32,
 }
@@ -247,7 +238,7 @@ frame :: proc "c" () {
 }
 
 // Upload arbitrary vertex/index data to GPU buffers
-fill_buffers_with_model :: proc(vertices: []Vertex, indices: []u16) {
+fill_buffers_with_model :: proc(vertices: []base.Vertex, indices: []u16) {
 	state.vertex_buffer = wgpu.DeviceCreateBufferWithData(
 		state.device,
 		&{label = "model vertices", usage = {.Vertex}},
@@ -319,7 +310,7 @@ on_device :: proc "c" (
 	uniforms_struct := to_wgsl_struct(Camera_Uniform, "Uniforms")
 	defer delete(uniforms_struct)
 	vertex_input_struct := to_wgsl_struct(
-		Vertex,
+		base.Vertex,
 		"VertexInput",
 		locations = true,
 	)
@@ -423,11 +414,11 @@ on_device :: proc "c" (
 	// ----------------------------------------
 	// Buffer shape
 
-	vertex_attributes := to_vertex_attributes(Vertex)
+	vertex_attributes := to_vertex_attributes(base.Vertex)
 
 	vertex_layout := wgpu.VertexBufferLayout {
 			stepMode       = .Vertex,
-			arrayStride    = size_of(Vertex),
+			arrayStride    = size_of(base.Vertex),
 			attributeCount = len(vertex_attributes),
 			attributes     = raw_data(vertex_attributes),
 		}

@@ -6,6 +6,7 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 
+import "sindri:base"
 import "sindri:platform"
 
 // Minimal OBJ loader: reads v, vt, vn and triangulates convex polygon faces.
@@ -14,7 +15,7 @@ import "sindri:platform"
 load_obj_model :: proc(
 	path: string,
 ) -> (
-	vertices: []platform.Vertex,
+	vertices: []base.Vertex,
 	indices: []u16,
 	ok: bool,
 ) {
@@ -25,10 +26,10 @@ load_obj_model :: proc(
 	}
 	defer delete(data)
 
-	positions: [dynamic]platform.Vec3
-	uvs: [dynamic]platform.Vec2
-	normals: [dynamic]platform.Vec3
-	temp_vertices: [dynamic]platform.Vertex
+	positions: [dynamic]base.Vec3
+	uvs: [dynamic]base.Vec2
+	normals: [dynamic]base.Vec3
+	temp_vertices: [dynamic]base.Vertex
 	temp_indices: [dynamic]u16
 	defer {
 		delete(positions)
@@ -53,18 +54,18 @@ load_obj_model :: proc(
 				x, _ := strconv.parse_f32(fields[1])
 				y, _ := strconv.parse_f32(fields[2])
 				z, _ := strconv.parse_f32(fields[3])
-				append(&positions, platform.Vec3{x, y, z})
+				append(&positions, base.Vec3{x, y, z})
 			case "vt":
 				if len(fields) < 3 do continue
 				u, _ := strconv.parse_f32(fields[1])
 				v, _ := strconv.parse_f32(fields[2])
-				append(&uvs, platform.Vec2{u, v})
+				append(&uvs, base.Vec2{u, v})
 			case "vn":
 				if len(fields) < 4 do continue
 				x, _ := strconv.parse_f32(fields[1])
 				y, _ := strconv.parse_f32(fields[2])
 				z, _ := strconv.parse_f32(fields[3])
-				append(&normals, platform.Vec3{x, y, z})
+				append(&normals, base.Vec3{x, y, z})
 			case "f":
 				face_indices: [dynamic]u16
 				defer delete(face_indices)
@@ -89,7 +90,7 @@ load_obj_model :: proc(
 					vi -= 1 // OBJ indices are 1-based
 					if vi < 0 || vi >= len(positions) do continue
 
-					uv := platform.Vec2{0, 0}
+					uv := base.Vec2{0, 0}
 					if len(vti_str) > 0 {
 						vti, _ := strconv.parse_int(vti_str)
 						vti -= 1
@@ -102,7 +103,7 @@ load_obj_model :: proc(
 
 					append(
 						&temp_vertices,
-						platform.Vertex {
+						base.Vertex {
 							pos = positions[vi],
 							col = {1, 1, 1},
 							uv = uv,
@@ -140,7 +141,7 @@ load_obj_model :: proc(
 		v.pos = (v.pos - center) * scale
 	}
 
-	vertices = make([]platform.Vertex, len(temp_vertices))
+	vertices = make([]base.Vertex, len(temp_vertices))
 	indices = make([]u16, len(temp_indices))
 	copy(vertices, temp_vertices[:])
 	copy(indices, temp_indices[:])

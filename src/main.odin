@@ -100,20 +100,18 @@ load_test_model :: proc() {
 		"assets/cube.obj",
 		cube.vertices,
 		cube.indices,
-		true,
+		0,
 	)
 	platform.create_renderable(
 		"assets/suzanne.obj",
 		suzanne.vertices,
 		suzanne.indices,
-		false,
+		3,
+	)
+	platform.create_renderable(
+		"assets/suzanne.obj",
+		suzanne.vertices,
+		suzanne.indices,
+		-3,
 	)
 }
-
-// per-object:
-// - vertex buffer
-// - index buffer
-// - uniform buffer (model matrix)
-// - texture
-// - material
-// - 1 drawcall

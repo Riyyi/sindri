@@ -25,7 +25,7 @@ Material_Uniform :: struct {
 }
 
 // Updated once per mesh
-Renderable_Uniform :: struct {
+Object_Uniform :: struct {
 	transform: base.Mat4,
 }
 
@@ -34,13 +34,16 @@ Material :: struct {
 	uniform_buffer: wgpu.Buffer,
 }
 
-// TODO: Split Renderable into mesh (vert, idx, #idx) and object (bg, ub)
-Renderable :: struct {
+Object :: struct {
+	name:           string,
 	bind_group:     wgpu.BindGroup,
 	uniform_buffer: wgpu.Buffer,
-	vertex_buffer:  wgpu.Buffer,
-	index_buffer:   wgpu.Buffer,
-	index_count:    u32,
+}
+
+Mesh :: struct {
+	vertex_buffer: wgpu.Buffer,
+	index_buffer:  wgpu.Buffer,
+	index_count:   u32,
 }
 
 // -----------------------------------------
@@ -48,38 +51,39 @@ Renderable :: struct {
 
 // Instance -> Surface -> Adapter -> Device -> Queue
 state: struct {
-	ctx:                          runtime.Context,
-	os:                           OS,
+	ctx:                        runtime.Context,
+	os:                         OS,
 	// ----------------------------------------
-	instance:                     wgpu.Instance, // entry point: creates Adapter, Device and Surface
-	surface:                      wgpu.Surface, // handle to a presentable surface (e.g. a window)
-	adapter:                      wgpu.Adapter, // handle to physical GPU
-	device:                       wgpu.Device, // open connection to a GPU
-	queue:                        wgpu.Queue, // handle to command queue on a Device
-	config:                       wgpu.SurfaceConfiguration,
-	module:                       wgpu.ShaderModule,
-	pipeline_layout:              wgpu.PipelineLayout,
-	pipeline:                     wgpu.RenderPipeline,
+	instance:                   wgpu.Instance, // entry point: creates Adapter, Device and Surface
+	surface:                    wgpu.Surface, // handle to a presentable surface (e.g. a window)
+	adapter:                    wgpu.Adapter, // handle to physical GPU
+	device:                     wgpu.Device, // open connection to a GPU
+	queue:                      wgpu.Queue, // handle to command queue on a Device
+	config:                     wgpu.SurfaceConfiguration,
+	module:                     wgpu.ShaderModule,
+	pipeline_layout:            wgpu.PipelineLayout,
+	pipeline:                   wgpu.RenderPipeline,
 	// ----------------------------------------
-	capabilities:                 wgpu.SurfaceCapabilities,
-	vsync:                        bool,
+	capabilities:               wgpu.SurfaceCapabilities,
+	vsync:                      bool,
 	// ----------------------------------------
-	depth_texture:                wgpu.Texture,
-	depth_texture_view:           wgpu.TextureView,
+	depth_texture:              wgpu.Texture,
+	depth_texture_view:         wgpu.TextureView,
 	// ----------------------------------------
-	camera_uniform_buffer:        wgpu.Buffer,
-	camera_bind_group_layout:     wgpu.BindGroupLayout,
-	camera_bind_group:            wgpu.BindGroup,
+	camera_uniform_buffer:      wgpu.Buffer,
+	camera_bind_group_layout:   wgpu.BindGroupLayout,
+	camera_bind_group:          wgpu.BindGroup,
 	// ----------------------------------------
-	material_bind_group_layout:   wgpu.BindGroupLayout,
-	materials:                    map[string]Material,
+	material_bind_group_layout: wgpu.BindGroupLayout,
+	materials:                  map[string]Material,
 	// ----------------------------------------
-	renderable_bind_group_layout: wgpu.BindGroupLayout,
-	renderables:                  map[string]Renderable,
+	objects_bind_group_layout:  wgpu.BindGroupLayout,
+	objects:                    [dynamic]Object,
+	meshes:                     map[string]Mesh,
 	// ----------------------------------------
-	diffuse_texture:              wgpu.Texture,
-	diffuse_texture_view:         wgpu.TextureView,
-	diffuse_sampler:              wgpu.Sampler,
+	diffuse_texture:            wgpu.Texture,
+	diffuse_texture_view:       wgpu.TextureView,
+	diffuse_sampler:            wgpu.Sampler,
 }
 
 // -----------------------------------------
@@ -92,7 +96,8 @@ instance_init :: proc(
 	state.ctx = context
 
 	state.materials = make(map[string]Material, allocator)
-	state.renderables = make(map[string]Renderable, allocator)
+	state.objects = make([dynamic]Object, allocator)
+	state.meshes = make(map[string]Mesh, allocator)
 
 	wgpu.SetLogCallback(log_callback, nil)
 	wgpu.SetLogLevel(.Warn)
@@ -142,16 +147,21 @@ instance_destroy :: proc() {
 	}
 	wgpu.BindGroupLayoutRelease(state.material_bind_group_layout)
 
-	if state.renderables != nil {
-		for _, r in state.renderables {
+	if state.meshes != nil {
+		for _, m in state.meshes {
+			wgpu.BufferRelease(m.vertex_buffer)
+			wgpu.BufferRelease(m.index_buffer)
+		}
+		delete(state.meshes)
+	}
+	if state.objects != nil {
+		for r in state.objects {
 			wgpu.BufferRelease(r.uniform_buffer)
 			wgpu.BindGroupRelease(r.bind_group)
-			wgpu.BufferRelease(r.vertex_buffer)
-			wgpu.BufferRelease(r.index_buffer)
 		}
-		delete(state.renderables)
+		delete(state.objects)
 	}
-	wgpu.BindGroupLayoutRelease(state.renderable_bind_group_layout)
+	wgpu.BindGroupLayoutRelease(state.objects_bind_group_layout)
 
 	wgpu.RenderPipelineRelease(state.pipeline)
 	wgpu.PipelineLayoutRelease(state.pipeline_layout)
@@ -256,6 +266,7 @@ frame :: proc "c" () {
 		dynamicOffsets = nil, // reuse bind group af different byte offsets, per binding
 	)
 
+	// Uniform group 1, materials
 	m := state.materials["dummy"]
 	wgpu.RenderPassEncoderSetBindGroup(
 		render_pass_encoder,
@@ -264,27 +275,29 @@ frame :: proc "c" () {
 		dynamicOffsets = nil, // reuse bind group af different byte offsets, per binding
 	)
 
-	// Render all renderables
-	for _, r in state.renderables {
-		// Uniform group 2
+	// Render all objects
+	for o in state.objects {
+		m := state.meshes[o.name]
+
+		// Uniform group 2, object
 		wgpu.RenderPassEncoderSetBindGroup(
 			render_pass_encoder,
 			2,
-			r.bind_group,
+			o.bind_group,
 			dynamicOffsets = nil, // reuse bind group af different byte offsets, per binding
 		)
 
 		wgpu.RenderPassEncoderSetVertexBuffer(
 			render_pass_encoder,
 			slot = 0,
-			buffer = r.vertex_buffer,
+			buffer = m.vertex_buffer,
 			offset = 0, // offset into buffer to start from
 			size = wgpu.WHOLE_SIZE, // x bytes of the buffer to use
 		)
 
 		wgpu.RenderPassEncoderSetIndexBuffer(
 			render_pass_encoder,
-			buffer = r.index_buffer,
+			buffer = m.index_buffer,
 			format = .Uint16, // type of each element in the buffer
 			offset = 0, // offset into buffer to start from
 			size = wgpu.WHOLE_SIZE, // x bytes of the buffer to use
@@ -292,13 +305,12 @@ frame :: proc "c" () {
 
 		wgpu.RenderPassEncoderDrawIndexed(
 			render_pass_encoder,
-			r.index_count,
+			m.index_count,
 			instanceCount = 1, // draw x instance(s) of the mesh
 			firstIndex = 0, // offset into buffer to start from, useful for drawing sub-mesh
 			baseVertex = 0, // value added to index before vertex fetch, useful for multi-mesh vertex buffers
 			firstInstance = 0, // number to start instance index from
 		)
-
 	}
 
 	wgpu.RenderPassEncoderEnd(render_pass_encoder)
@@ -362,27 +374,20 @@ create_renderable :: proc(
 	name: string,
 	vertices: []base.Vertex,
 	indices: []u16,
-	first: bool,
+	x_offset: f32,
 ) {
-	if name in state.renderables do return
-
 	uniform_buffer := wgpu.DeviceCreateBuffer(
 		state.device,
 		&{
-			label = "renderable uniform",
+			label = "object uniform",
 			usage = {.Uniform, .CopyDst}, // shader reads, queue writes
-			size  = cast(u64)size_of(Renderable_Uniform),
+			size  = cast(u64)size_of(Object_Uniform),
 		},
 	)
 
-	transform: base.Mat4
-	if first {
-		transform = linalg.identity(base.Mat4)
-	} else {
-		transform = linalg.matrix4_translate(base.Vec3{3, 0, 0})
-	}
-	uniform := Renderable_Uniform {
-		transform = transform,
+	uniform := Object_Uniform {
+		// transform = linalg.identity(base.Mat4)
+		transform = linalg.matrix4_translate(base.Vec3{x_offset, 0, 0}),
 	}
 
 	// bufferOffset = offset into buffer to start from
@@ -391,7 +396,7 @@ create_renderable :: proc(
 		uniform_buffer,
 		0,
 		&uniform,
-		size_of(Renderable_Uniform),
+		size_of(Object_Uniform),
 	)
 
 	entries := [?]wgpu.BindGroupEntry {
@@ -399,18 +404,29 @@ create_renderable :: proc(
 			binding = 0, // slot 0
 			buffer  = uniform_buffer,
 			offset  = 0, // offset into buffer to start from
-			size    = cast(u64)size_of(Renderable_Uniform),
+			size    = cast(u64)size_of(Object_Uniform),
 		},
 	}
 	bind_group := wgpu.DeviceCreateBindGroup(
 		state.device,
 		&{
-			label = "renderable bind group",
-			layout = state.renderable_bind_group_layout,
+			label = "object bind group",
+			layout = state.objects_bind_group_layout,
 			entryCount = len(entries),
 			entries = raw_data(entries[:]),
 		},
 	)
+
+	append(
+		&state.objects,
+		Object {
+			name = name,
+			bind_group = bind_group,
+			uniform_buffer = uniform_buffer,
+		},
+	)
+
+	if name in state.meshes do return
 
 	vertex_buffer := wgpu.DeviceCreateBuffer(
 		state.device,
@@ -446,12 +462,10 @@ create_renderable :: proc(
 		cast(uint)(len(indices) * size_of(u16)),
 	)
 
-	state.renderables[name] = {
-		bind_group     = bind_group,
-		uniform_buffer = uniform_buffer,
-		vertex_buffer  = vertex_buffer,
-		index_buffer   = index_buffer,
-		index_count    = cast(u32)len(indices),
+	state.meshes[name] = {
+		vertex_buffer = vertex_buffer,
+		index_buffer  = index_buffer,
+		index_count   = cast(u32)len(indices),
 	}
 }
 
@@ -522,7 +536,7 @@ on_device :: proc "c" (
 	material_struct := to_wgsl_struct(Material_Uniform, "Material")
 	defer delete(material_struct)
 
-	renderable_struct := to_wgsl_struct(Renderable_Uniform, "Renderable")
+	renderable_struct := to_wgsl_struct(Object_Uniform, "Renderable")
 	defer delete(renderable_struct)
 
 	shader := fmt.tprintf(
@@ -653,11 +667,11 @@ on_device :: proc "c" (
 			visibility = {.Vertex},
 			buffer = {
 				type = .Uniform,
-				minBindingSize = cast(u64)size_of(Renderable_Uniform),
+				minBindingSize = cast(u64)size_of(Object_Uniform),
 			},
 		},
 	}
-	state.renderable_bind_group_layout = wgpu.DeviceCreateBindGroupLayout(
+	state.objects_bind_group_layout = wgpu.DeviceCreateBindGroupLayout(
 		state.device,
 		&{
 			label = "renderable layout",
@@ -690,7 +704,7 @@ on_device :: proc "c" (
 	group_layouts := [?]wgpu.BindGroupLayout {
 		state.camera_bind_group_layout,
 		state.material_bind_group_layout,
-		state.renderable_bind_group_layout,
+		state.objects_bind_group_layout,
 	}
 	state.pipeline_layout = wgpu.DeviceCreatePipelineLayout(
 		state.device,

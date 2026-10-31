@@ -7,21 +7,21 @@ import "core:strconv"
 import "core:strings"
 
 import "sindri:base"
-import "sindri:platform"
 
 // Minimal OBJ loader: reads v, vt, vn and triangulates convex polygon faces.
 // Produces one GPU vertex per face corner, then centers and normalizes the
 // model so it fits roughly inside a [-1, 1] cube at the origin
 load_obj_model :: proc(
 	path: string,
+	allocator := context.allocator,
 ) -> (
 	vertices: []base.Vertex,
 	indices: []u16,
 	ok: bool,
 ) {
-	data, err := os.read_entire_file_from_path(path, context.allocator)
+	data, err := os.read_entire_file_from_path(path, allocator)
 	if err != os.ERROR_NONE {
-		fmt.eprintfln("[core] failed to read model: %s", path)
+		fmt.eprintfln("[obj] failed to read model: %s", path)
 		return nil, nil, false
 	}
 	defer delete(data)
@@ -141,8 +141,8 @@ load_obj_model :: proc(
 		v.pos = (v.pos - center) * scale
 	}
 
-	vertices = make([]base.Vertex, len(temp_vertices))
-	indices = make([]u16, len(temp_indices))
+	vertices = make([]base.Vertex, len(temp_vertices), allocator)
+	indices = make([]u16, len(temp_indices), allocator)
 	copy(vertices, temp_vertices[:])
 	copy(indices, temp_indices[:])
 	return vertices, indices, true

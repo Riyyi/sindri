@@ -89,10 +89,31 @@ test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {
 
 // Load model from disk and upload it
 load_test_model :: proc() {
-	vertices, indices, model_ok := core.load_obj_model("assets/suzanne.obj")
-	if !model_ok do fmt.panicf("[main] could not load model")
-	defer delete(vertices)
-	defer delete(indices)
+	assets := core.assets_init()
+	defer core.assets_destroy(&assets)
 
-	platform.fill_buffers_with_model(vertices, indices)
+	cube := core.load_model(&assets, "assets/cube.obj")
+	suzanne := core.load_model(&assets, "assets/suzanne.obj")
+
+	platform.create_material("dummy")
+	platform.create_renderable(
+		"assets/cube.obj",
+		cube.vertices,
+		cube.indices,
+		true,
+	)
+	platform.create_renderable(
+		"assets/suzanne.obj",
+		suzanne.vertices,
+		suzanne.indices,
+		false,
+	)
 }
+
+// per-object:
+// - vertex buffer
+// - index buffer
+// - uniform buffer (model matrix)
+// - texture
+// - material
+// - 1 drawcall

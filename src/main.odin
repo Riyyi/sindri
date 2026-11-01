@@ -44,6 +44,11 @@ main :: proc() {
 	defer platform.instance_destroy()
 	load_test_model()
 
+	things := core.Things{}
+	camera := core.add(&things)
+
+	base.register_region("things", &things, size_of(core.Things))
+
 	api.init_once()
 
 	base.read_snapshot()

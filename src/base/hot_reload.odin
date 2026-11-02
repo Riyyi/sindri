@@ -212,7 +212,7 @@ read_snapshot :: proc() -> os.Error {
 		region := &hr.regions[key]
 		region.digest = digest
 
-		// Write snapshot memory to the memory region
+		// Copy snapshot memory to the memory region
 		dest := mem.byte_slice(
 			region.ptr_location,
 			cast(int)region_header.data_size,
@@ -275,10 +275,14 @@ write_snapshot :: proc() -> os.Error {
 			data_bytes,
 			hr.allocator,
 		)
-		if hr.write_full_snapshot || mem.compare(digest, region.digest) != 0 {
+		if hr.write_full_snapshot {
 			delete(region.digest, hr.allocator)
 			region.digest = digest
 			os.write_at(snapshot, data_bytes, offset) or_return
+		} else if mem.compare(digest, region.digest) != 0 {
+			delete(region.digest, hr.allocator)
+			region.digest = digest
+			write_diff_at(snapshot, data_bytes, offset) or_return
 		} else {
 			delete(digest, hr.allocator)
 		}
@@ -286,6 +290,44 @@ write_snapshot :: proc() -> os.Error {
 	}
 
 	hr.write_full_snapshot = false
+
+	return nil
+}
+
+write_diff_at :: proc(
+	snapshot: ^os.File,
+	mem_data: []byte,
+	offset: i64,
+) -> os.Error {
+	size := len(mem_data)
+
+	disk_data := make([]byte, size, hr.allocator)
+	defer delete(disk_data, hr.allocator)
+	os.read_at(snapshot, disk_data, offset) or_return
+
+	diff_idx: int = -1
+	for i := 0; i < size; i += 1 {
+		if mem_data[i] == disk_data[i] {
+			if diff_idx >= 0 {
+				os.write_at(
+					snapshot,
+					mem_data[diff_idx:i],
+					offset + cast(i64)diff_idx,
+				) or_return
+				diff_idx = -1
+			}
+		} else if diff_idx < 0 {
+			diff_idx = i
+		}
+	}
+
+	if diff_idx >= 0 {
+		os.write_at(
+			snapshot,
+			mem_data[diff_idx:size],
+			offset + cast(i64)diff_idx,
+		) or_return
+	}
 
 	return nil
 }

@@ -54,3 +54,10 @@ skips building the engine if its already running (pgrep).
 
 no hot reload does not use game.dll, instead it imports the game source
 as a normal Odin package during build.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE), unless otherwise
+noted. Individual files or subdirectories may carry a different license (for
+example, the [Unlicense](https://unlicense.org)); in those cases, the license
+terms specified in the file or directory take precedence.

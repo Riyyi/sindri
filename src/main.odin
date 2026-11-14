@@ -49,9 +49,11 @@ main :: proc() {
 
 	base.register_region("things", &things, size_of(core.Things))
 
-	api.init_once()
+	api.register_memory()
 
-	base.read_snapshot()
+	fresh, err := base.read_snapshot()
+	fmt.assertf(err == nil, "[main] couldnt read snapshot", err)
+	if fresh do api.init_once()
 
 	api.init()
 

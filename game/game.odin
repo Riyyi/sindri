@@ -25,15 +25,16 @@ g: Game_Memory
 t: Test_Memory
 
 game_api := core.Game_API {
-	settings      = settings,
-	init_once     = init_once,
-	init          = init,
-	update        = update,
-	render        = render,
-	destroy       = destroy,
-	should_close  = should_close,
-	force_reload  = force_reload,
-	force_restart = force_restart,
+	settings        = settings,
+	register_memory = register_memory,
+	init_once       = init_once,
+	init            = init,
+	update          = update,
+	render          = render,
+	destroy         = destroy,
+	should_close    = should_close,
+	force_reload    = force_reload,
+	force_restart   = force_restart,
 }
 
 // -----------------------------------------
@@ -54,11 +55,13 @@ settings :: proc() -> base.Settings {
 	}
 }
 
-init_once :: proc() {
-	fmt.println("init once")
-
+register_memory :: proc() {
 	base.register_region("game_memory", &g, size_of(Game_Memory))
 	base.register_region("test_memory", &t, size_of(Test_Memory))
+}
+
+init_once :: proc() {
+	fmt.println("init once")
 }
 
 init :: proc() {

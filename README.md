@@ -40,6 +40,8 @@ vendor
 - microui (temp)
 - box3d?
 - build.sh -> bootstrap shim for `compile/build.odin`
+- stb
+- kb (https://github.com/JimmyLefevre/kb)
 
 ## Hot Reload
 

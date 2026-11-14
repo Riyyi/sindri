@@ -43,6 +43,7 @@ Thing :: struct {
 
 Things :: struct {
 	things:      [THINGS_MAX]Thing,
+	// TODO: Collapse used and gen into 1 array
 	used:        [THINGS_MAX]bool,
 	gen:         [THINGS_MAX]u16,
 	free_list:   [THINGS_MAX]Thing_Idx,

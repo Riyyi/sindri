@@ -145,13 +145,14 @@ register_region :: proc(
 	return nil
 }
 
-read_snapshot :: proc() -> os.Error {
+// returns `fresh` = `true` when booting without a snapshot
+read_snapshot :: proc() -> (fresh: bool, err: os.Error) {
 	assert(hr.region_headers != nil, "[hot-reload] uninitialized")
 	assert(hr.regions != nil, "[hot-reload] uninitialized")
 
 	if !os.exists(hr.snapshot_path) {
 		hr.write_full_snapshot = true
-		return nil
+		return true, nil
 	}
 
 	snapshot := os.open(hr.snapshot_path, {.Read}) or_return
@@ -220,7 +221,7 @@ read_snapshot :: proc() -> os.Error {
 		copy(dest, data_bytes)
 	}
 
-	return nil
+	return false, nil
 }
 
 // Next write will be a full memory snapshot

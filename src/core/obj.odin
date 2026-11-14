@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 Riyyi
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 package core
 
 import "core:fmt"

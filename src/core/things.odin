@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 Riyyi
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 // Large Array of Things
 // - Fixed size arrays and handles
 // - ZII (Zero Is Initialization) and NIL over null

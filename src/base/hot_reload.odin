@@ -5,11 +5,11 @@ import "core:crypto/hash"
 import "core:fmt"
 import "core:mem"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "core:time"
 
-SNAPSHOT_NAME :: "snapshot"
-SNAPSHOT_EXTENSION :: "sndr"
+SNAPSHOT_FILE :: "snapshot.sndr"
 
 MAGIC_STRING :: 0x72646E73 // "rdns" -> "sndr" in little endian
 HOT_RELOAD_VERSION :: 1
@@ -65,11 +65,9 @@ hot_reload_init :: proc(
 	// Get snapshot path
 	out := os.get_executable_directory(allocator) or_return
 	defer delete(out, allocator)
-	snapshot_path := fmt.tprintf(
-		"%v/%v.%v",
-		out,
-		SNAPSHOT_NAME,
-		SNAPSHOT_EXTENSION,
+	snapshot_path, err := filepath.join(
+		{out, SNAPSHOT_FILE},
+		context.temp_allocator,
 	)
 	snapshot_path_cpy := strings.clone(snapshot_path, allocator)
 

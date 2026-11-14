@@ -52,7 +52,7 @@ main :: proc() {
 	api.register_memory()
 
 	fresh, err := base.read_snapshot()
-	fmt.assertf(err == nil, "[main] couldnt read snapshot", err)
+	fmt.assertf(err == nil, "[main] failed to read snapshot", err)
 	if fresh do api.init_once()
 
 	api.init()

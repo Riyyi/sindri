@@ -64,7 +64,7 @@
       flex: 1;
       padding: 1rem;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto auto 1fr auto;
       grid-template-columns: auto 1fr;
       gap: 1rem;
       min-height: 0;
@@ -100,8 +100,55 @@
 
     button:hover { background: #2e323b; }
 
-    #viewport {
+    #tabs {
       grid-row: 2;
+      grid-column: 1 / -1;
+      display: none;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    #tabs.visible {
+      display: flex;
+    }
+
+    .tab {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+
+    .tab:hover {
+      background: #2e323b;
+      color: var(--text);
+    }
+
+    .tab.active {
+      background: var(--push);
+      color: #fff;
+      border-color: var(--push);
+    }
+
+    .separate-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--muted);
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
+    .separate-toggle input {
+      cursor: pointer;
+    }
+
+    #viewport {
+      grid-row: 3;
       grid-column: 2;
       background: var(--panel);
       border: 1px solid var(--border);
@@ -126,62 +173,40 @@
     }
 
     #y-axis {
-      grid-row: 2;
+      grid-row: 3;
       grid-column: 1;
-      display: flex;
-      flex-direction: column;
+      position: relative;
       padding-right: 0.5rem;
       color: var(--muted);
       font-size: 0.75rem;
       min-width: 4rem;
     }
 
-    #y-axis .labels {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: flex-end;
-    }
-
-    #y-axis .spacer {
-      flex: 0.12;
-    }
-
     #y-axis .tick {
-      position: relative;
+      position: absolute;
+      right: 0.5rem;
+      transform: translateY(-50%);
       text-align: right;
       line-height: 1;
+      white-space: nowrap;
     }
 
     #timeline-axis {
-      grid-row: 3;
+      grid-row: 4;
       grid-column: 2;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      position: relative;
       padding: 0.25rem 0;
       color: var(--muted);
       font-size: 0.75rem;
       border-top: 1px solid var(--border);
-      position: relative;
-    }
-
-    #timeline-axis::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: var(--border);
+      height: 1.5rem;
     }
 
     #timeline-axis .tick {
-      position: relative;
-      padding-top: 0.25rem;
+      position: absolute;
+      top: 0.25rem;
+      transform: translateX(-50%);
       text-align: center;
-      flex: 1;
     }
 
     #timeline-axis .tick::before {
@@ -192,6 +217,7 @@
       width: 1px;
       height: 6px;
       background: var(--muted);
+      transform: translateX(-50%);
     }
 
     .frame {
@@ -232,6 +258,8 @@
       display: flex;
       gap: 1rem;
       align-items: center;
+      justify-content: center;
+      flex: 1;
       font-size: 0.875rem;
       color: var(--muted);
     }
@@ -270,9 +298,13 @@
 
   <main>
     <div class="controls">
-      <label>Zoom X <input id="zoomX" type="range" min="0.5" max="20" step="0.5" value="1"></label>
-      <label>Zoom Y <input id="zoomY" type="range" min="0.5" max="10" step="0.5" value="1"></label>
+      <label>Zoom X <input id="zoomX" type="range" min="0.5" max="20" step="0.5" value="10"></label>
+      <label>Zoom Y <input id="zoomY" type="range" min="0.5" max="10" step="0.5" value="5"></label>
       <button id="reset">Reset view</button>
+      <label class="separate-toggle">
+        <input id="separate" type="checkbox">
+        Separate
+      </label>
       <div class="legend">
         <span><span class="swatch" style="background:linear-gradient(180deg,#60a5fa,#2563eb)"></span>Allocation</span>
         <span><span class="swatch" style="background:#ef4444"></span>Pop</span>
@@ -280,6 +312,7 @@
       </div>
       <span class="hint">Pan by dragging. Hover a block for details.</span>
     </div>
+    <div id="tabs"></div>
     <div id="y-axis"></div>
     <div id="viewport"></div>
     <div id="timeline-axis"></div>
@@ -293,12 +326,26 @@
     const tooltip = document.getElementById('tooltip');
     const zoomXInput = document.getElementById('zoomX');
     const zoomYInput = document.getElementById('zoomY');
+    const separateCheckbox = document.getElementById('separate');
+    const tabsContainer = document.getElementById('tabs');
 
     const KIND_COLORS = {
       Push: '#3b82f6',
       Pop: '#ef4444',
       Clear: '#f59e0b',
     };
+
+    const ZOOM_X_MID = 10;
+    const ZOOM_Y_MID = 5;
+
+    let combinedDataset = null;
+    let arenaDatasets = new Map();
+    let globalMinTime = 0;
+    let globalMaxTime = 0;
+    let globalTimeSpan = 0;
+    let currentMode = 'combined';
+    let currentArenaId = null;
+    const viewStates = new Map();
 
     function formatBytes(n) {
       if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MiB';
@@ -326,25 +373,36 @@
       try {
         const data = JSON.parse(text);
         if (Array.isArray(data)) {
-          return data.map(e => ({ ...e, timeMs: parseTime(e.time) }));
+          return data.map(e => ({ ...e, timeMs: parseTime(e.time), id: e.id ?? 'default' }));
         }
       } catch (_) {}
 
       const entries = [];
-      const re = /\{\s*"kind"\s*[:=]\s*"?(\w+)"?\s*,\s*"time"\s*[:=]\s*"?([^",]+)"?\s*,\s*"loc"\s*[:=]\s*"?([^",]+)"?\s*,\s*"pos"\s*[:=]\s*(\d+)\s*,\s*"size"\s*[:=]\s*(\d+)\s*\}/g;
+      const re = /\{\s*(?:"id"\s*[:=]\s*"?([^",\s]+)"?\s*,\s*)?"kind"\s*[:=]\s*"?(\w+)"?\s*,\s*"time"\s*[:=]\s*"?([^",]+)"?\s*,\s*"loc"\s*[:=]\s*"?([^",]+)"?\s*,\s*"pos"\s*[:=]\s*(\d+)\s*,\s*"size"\s*[:=]\s*(\d+)\s*\}/g;
       let m;
       while ((m = re.exec(text)) !== null) {
-        const time = m[2].trim();
+        const time = m[3].trim();
         entries.push({
-          kind: m[1],
+          id: m[1] ?? 'default',
+          kind: m[2],
           time: time,
           timeMs: parseTime(time),
-          loc: m[3].trim(),
-          pos: parseInt(m[4], 10),
-          size: parseInt(m[5], 10),
+          loc: m[4].trim(),
+          pos: parseInt(m[5], 10),
+          size: parseInt(m[6], 10),
         });
       }
       return entries;
+    }
+
+    function groupById(entries) {
+      const groups = new Map();
+      for (const e of entries) {
+        const id = e.id ?? 'default';
+        if (!groups.has(id)) groups.set(id, []);
+        groups.get(id).push(e);
+      }
+      return groups;
     }
 
     function buildFrames(entries) {
@@ -364,6 +422,7 @@
           const id = nextId++;
           const frame = {
             id,
+            arenaId: e.id,
             startTime: e.timeMs,
             endTime: lastTimeMs + tailPadding,
             size: e.size,
@@ -388,6 +447,7 @@
               // Keep the lower portion alive and record the freed tail as its own frame.
               const freed = {
                 id: top.id,
+                arenaId: top.arenaId,
                 startTime: top.startTime,
                 endTime: e.timeMs,
                 size: remaining,
@@ -422,137 +482,281 @@
       return { frames, peakY };
     }
 
-    function render(entries, frames, peakY) {
+    function getCurrentDataset() {
+      if (currentMode === 'combined') return combinedDataset;
+      return arenaDatasets.get(currentArenaId) ?? combinedDataset;
+    }
+
+    function getCurrentKey() {
+      return currentMode === 'combined' ? 'combined' : currentArenaId;
+    }
+
+    function getCurrentState() {
+      const key = getCurrentKey();
+      if (!viewStates.has(key)) {
+        viewStates.set(key, { zoomX: 1, zoomY: 1, panX: 0, panY: 0 });
+      }
+      return viewStates.get(key);
+    }
+
+    function updateStats(dataset) {
+      const entries = dataset.entries;
       const minTime = entries.length > 0 ? entries[0].timeMs : 0;
       const maxTime = entries.length > 0 ? entries[entries.length - 1].timeMs : 0;
       const timeSpan = maxTime - minTime;
 
       document.getElementById('stat-entries').textContent = entries.length;
-      document.getElementById('stat-peak').textContent = formatBytes(peakY);
+      document.getElementById('stat-peak').textContent = formatBytes(dataset.peakY);
       document.getElementById('stat-bytes').textContent = formatBytes(Math.max(...entries.filter(e => e.kind === 'Push').map(e => e.pos + e.size), 0));
       document.getElementById('stat-time').textContent = (timeSpan / 1000).toFixed(2) + ' s';
+    }
 
+    function niceStep(range, targetTicks = 5) {
+      if (range <= 0) return 1;
+      const rough = range / targetTicks;
+      const exponent = Math.floor(Math.log10(rough));
+      const fraction = rough / Math.pow(10, exponent);
+      let niceFraction;
+      if (fraction <= 1) niceFraction = 1;
+      else if (fraction <= 2) niceFraction = 2;
+      else if (fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+      return niceFraction * Math.pow(10, exponent);
+    }
+
+    function formatTime(ms) {
+      const absMs = Math.abs(ms);
+      if (absMs < 1000) return Math.round(ms) + 'ms';
+      const s = ms / 1000;
+      if (absMs < 10000) return s.toFixed(2) + 's';
+      if (absMs < 60000) return s.toFixed(1) + 's';
+      const m = Math.floor(s / 60);
+      const rs = s % 60;
+      return m + 'm' + rs.toFixed(0).padStart(2, '0') + 's';
+    }
+
+    function updateTimelineAxis() {
       const xAxis = document.getElementById('timeline-axis');
       xAxis.innerHTML = '';
-      const seconds = Math.max(1, Math.floor(timeSpan / 1000));
-      for (let s = 0; s <= seconds; s++) {
+
+      const vs = getCurrentState();
+      const sx = scaleX * vs.zoomX;
+      if (sx === 0 || viewportWidth === 0) return;
+
+      const tLeft = globalMinTime - vs.panX / sx;
+      const tRight = globalMinTime + (viewportWidth - vs.panX) / sx;
+      const rangeMs = tRight - tLeft;
+      if (rangeMs <= 0) return;
+
+      const stepMs = niceStep(rangeMs);
+      const firstOffsetMs = Math.ceil((tLeft - globalMinTime) / stepMs) * stepMs;
+
+      for (let offsetMs = firstOffsetMs; offsetMs <= tRight - globalMinTime + 1e-9; offsetMs += stepMs) {
+        const t = globalMinTime + offsetMs;
+        const x = vs.panX + (t - globalMinTime) * sx;
+        if (x < -50 || x > viewportWidth + 50) continue;
+
         const tick = document.createElement('div');
         tick.className = 'tick';
-        tick.textContent = s + 's';
+        tick.textContent = formatTime(offsetMs);
+        tick.style.left = x + 'px';
         xAxis.appendChild(tick);
       }
+    }
 
+    function updateYAxis(peakY) {
       const yAxis = document.getElementById('y-axis');
       yAxis.innerHTML = '';
-      const labels = document.createElement('div');
-      labels.className = 'labels';
-      const yTicks = 5;
-      for (let i = yTicks; i >= 0; i--) {
-        const value = Math.round((peakY * i) / yTicks);
+
+      const vs = getCurrentState();
+      const flameHeight = peakY || 1;
+      const sy = scaleY * vs.zoomY;
+      if (sy === 0 || viewportHeight === 0) return;
+
+      const mTop = Math.max(0, Math.min(peakY, flameHeight + vs.panY / sy));
+      const mBottom = Math.max(0, Math.min(peakY, flameHeight - (viewportHeight - vs.panY) / sy));
+      const range = mTop - mBottom;
+      if (range <= 0) return;
+
+      const step = niceStep(range);
+      const first = Math.ceil(mBottom / step) * step;
+
+      for (let m = first; m <= mTop + 1e-9; m += step) {
+        const y = vs.panY + (flameHeight - m) * sy;
+        if (y < -20 || y > viewportHeight + 20) continue;
+
         const tick = document.createElement('div');
         tick.className = 'tick';
-        tick.textContent = formatBytes(value);
-        labels.appendChild(tick);
+        tick.textContent = formatBytes(Math.round(m));
+        tick.style.top = y + 'px';
+        yAxis.appendChild(tick);
       }
-      yAxis.appendChild(labels);
-      const spacer = document.createElement('div');
-      spacer.className = 'spacer';
-      yAxis.appendChild(spacer);
+    }
 
-      const baseWidth = timeSpan || 1;
-      const flameHeight = peakY || 1;
+    function updateAxes() {
+      const dataset = getCurrentDataset();
+      updateYAxis(dataset.peakY);
+      updateTimelineAxis();
+    }
+
+    const svgNS = 'http://www.w3.org/2000/svg';
+    let svg, g;
+    let scaleX = 1;
+    let scaleY = 1;
+    let viewportWidth = 0;
+    let viewportHeight = 0;
+
+    function colorFor(kind) {
+      return KIND_COLORS[kind] || '#888';
+    }
+
+    function allocationColor(frame) {
+      const hue = 215;
+      const lightness = 45 + ((frame.id * 7) % 25);
+      if (frame.isFreedTail) {
+        return `hsla(${hue}, 70%, ${lightness + 25}%, 0.45)`;
+      }
+      return `hsla(${hue}, 75%, ${lightness}%, 1)`;
+    }
+
+    function updateTransform() {
+      const vs = getCurrentState();
+      g.setAttribute('transform', `translate(${vs.panX}, ${vs.panY}) scale(${vs.zoomX * scaleX}, ${vs.zoomY * scaleY})`);
+      updateAxes();
+    }
+
+    function updateScale() {
+      const rect = viewport.getBoundingClientRect();
+      const dataset = getCurrentDataset();
+      const baseWidth = globalTimeSpan || 1;
+      const flameHeight = dataset.peakY || 1;
       const axisMargin = flameHeight * 0.12;
       const baseHeight = flameHeight + axisMargin;
+      viewportWidth = rect.width;
+      viewportHeight = rect.height;
+      scaleX = rect.width / baseWidth;
+      scaleY = rect.height / baseHeight;
+      updateTransform();
+    }
 
-      const svgNS = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(svgNS, 'svg');
-      const g = document.createElementNS(svgNS, 'g');
+    function draw() {
+      while (g.firstChild) g.removeChild(g.firstChild);
+
+      const dataset = getCurrentDataset();
+      const { frames, peakY } = dataset;
+      const flameHeight = peakY || 1;
+      const axisMargin = flameHeight * 0.12;
+
+      for (const f of frames) {
+        const x = f.startTime - globalMinTime;
+        const w = f.endTime - f.startTime;
+        if (w <= 0) continue;
+
+        const rect = document.createElementNS(svgNS, 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', flameHeight - (f.y + f.size));
+        rect.setAttribute('width', w);
+        rect.setAttribute('height', f.size);
+        rect.setAttribute('fill', allocationColor(f));
+        rect.setAttribute('class', 'frame');
+        rect.setAttribute('vector-effect', 'non-scaling-stroke');
+        rect.dataset.kind = f.kind;
+        rect.dataset.size = f.size;
+        rect.dataset.origSize = f.origSize;
+        rect.dataset.pos = f.pos;
+        rect.dataset.time = f.time;
+        rect.dataset.loc = f.loc;
+        rect.dataset.id = f.arenaId;
+        rect.dataset.isFreedTail = f.isFreedTail;
+        g.appendChild(rect);
+      }
+
+      // Operation markers at the bottom so Pop/Clear are visible too
+      const markerY = flameHeight + axisMargin * 0.35;
+      for (const e of dataset.entries) {
+        const x = e.timeMs - globalMinTime;
+        const marker = document.createElementNS(svgNS, 'line');
+        marker.setAttribute('x1', x);
+        marker.setAttribute('y1', markerY - axisMargin * 0.25);
+        marker.setAttribute('x2', x);
+        marker.setAttribute('y2', markerY + axisMargin * 0.25);
+        marker.setAttribute('stroke', colorFor(e.kind));
+        marker.setAttribute('stroke-width', '1.5');
+        marker.setAttribute('vector-effect', 'non-scaling-stroke');
+        g.appendChild(marker);
+      }
+    }
+
+    function render() {
+      const dataset = getCurrentDataset();
+      const vs = getCurrentState();
+
+      zoomXInput.value = vs.zoomX * ZOOM_X_MID;
+      zoomYInput.value = vs.zoomY * ZOOM_Y_MID;
+
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.id === currentArenaId);
+      });
+
+      updateStats(dataset);
+      draw();
+      updateScale();
+    }
+
+    function setupTabs() {
+      tabsContainer.innerHTML = '';
+      for (const id of arenaDatasets.keys()) {
+        const tab = document.createElement('button');
+        tab.className = 'tab';
+        tab.textContent = id;
+        tab.dataset.id = id;
+        tab.addEventListener('click', () => {
+          currentArenaId = id;
+          render();
+        });
+        tabsContainer.appendChild(tab);
+      }
+    }
+
+    function setupControls() {
+      separateCheckbox.addEventListener('change', () => {
+        currentMode = separateCheckbox.checked ? 'separate' : 'combined';
+        if (currentMode === 'separate' && !currentArenaId) {
+          currentArenaId = arenaDatasets.keys().next().value;
+        }
+        tabsContainer.classList.toggle('visible', currentMode === 'separate');
+        render();
+      });
+
+      zoomXInput.addEventListener('input', () => {
+        getCurrentState().zoomX = parseFloat(zoomXInput.value) / ZOOM_X_MID;
+        updateTransform();
+      });
+
+      zoomYInput.addEventListener('input', () => {
+        getCurrentState().zoomY = parseFloat(zoomYInput.value) / ZOOM_Y_MID;
+        updateTransform();
+      });
+
+      document.getElementById('reset').addEventListener('click', () => {
+        const vs = getCurrentState();
+        vs.zoomX = 1;
+        vs.zoomY = 1;
+        vs.panX = 0;
+        vs.panY = 0;
+        zoomXInput.value = ZOOM_X_MID;
+        zoomYInput.value = ZOOM_Y_MID;
+        updateTransform();
+      });
+    }
+
+    function setupViewport() {
+      svg = document.createElementNS(svgNS, 'svg');
+      g = document.createElementNS(svgNS, 'g');
       svg.appendChild(g);
       viewport.innerHTML = '';
       viewport.appendChild(svg);
 
-      let zoomX = parseFloat(zoomXInput.value);
-      let zoomY = parseFloat(zoomYInput.value);
-      let panX = 0;
-      let panY = 0;
-      let scaleX = 1;
-      let scaleY = 1;
-
-      function updateScale() {
-        const rect = viewport.getBoundingClientRect();
-        scaleX = rect.width / baseWidth;
-        scaleY = rect.height / baseHeight;
-        updateTransform();
-      }
-
-      function updateTransform() {
-        g.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoomX * scaleX}, ${zoomY * scaleY})`);
-      }
-
-      function draw() {
-        // Remove existing rects
-        while (g.firstChild) g.removeChild(g.firstChild);
-
-        function colorFor(kind) {
-          return KIND_COLORS[kind] || '#888';
-        }
-
-        function allocationColor(frame) {
-          const hue = 215;
-          const lightness = 45 + ((frame.id * 7) % 25);
-          if (frame.isFreedTail) {
-            return `hsla(${hue}, 70%, ${lightness + 25}%, 0.45)`;
-          }
-          return `hsla(${hue}, 75%, ${lightness}%, 1)`;
-        }
-
-        // Flame graph frames (only pushes produce live allocations)
-        for (const f of frames) {
-          const x = f.startTime - minTime;
-          const w = f.endTime - f.startTime;
-          if (w <= 0) continue;
-
-          const rect = document.createElementNS(svgNS, 'rect');
-          rect.setAttribute('x', x);
-          rect.setAttribute('y', flameHeight - (f.y + f.size));
-          rect.setAttribute('width', w);
-          rect.setAttribute('height', f.size);
-          rect.setAttribute('fill', allocationColor(f));
-          rect.setAttribute('class', 'frame');
-          rect.setAttribute('vector-effect', 'non-scaling-stroke');
-          rect.dataset.kind = f.kind;
-          rect.dataset.size = f.size;
-          rect.dataset.origSize = f.origSize;
-          rect.dataset.pos = f.pos;
-          rect.dataset.time = f.time;
-          rect.dataset.loc = f.loc;
-          rect.dataset.isFreedTail = f.isFreedTail;
-          g.appendChild(rect);
-        }
-
-        // Operation markers at the bottom so Pop/Clear are visible too
-        const markerY = flameHeight + axisMargin * 0.35;
-        for (const e of entries) {
-          const x = e.timeMs - minTime;
-          const marker = document.createElementNS(svgNS, 'line');
-          marker.setAttribute('x1', x);
-          marker.setAttribute('y1', markerY - axisMargin * 0.25);
-          marker.setAttribute('x2', x);
-          marker.setAttribute('y2', markerY + axisMargin * 0.25);
-          marker.setAttribute('stroke', colorFor(e.kind));
-          marker.setAttribute('stroke-width', '1.5');
-          marker.setAttribute('vector-effect', 'non-scaling-stroke');
-          g.appendChild(marker);
-        }
-
-        updateTransform();
-      }
-
-      draw();
-      updateScale();
-      window.addEventListener('resize', updateScale);
-
-      // Pan / zoom interaction
       let isDragging = false;
       let lastX = 0;
       let lastY = 0;
@@ -570,11 +774,12 @@
       });
 
       viewport.addEventListener('mousemove', e => {
+        const vs = getCurrentState();
         if (isDragging) {
           const dx = e.clientX - lastX;
           const dy = e.clientY - lastY;
-          panX += dx;
-          panY += dy;
+          vs.panX += dx;
+          vs.panY += dy;
           lastX = e.clientX;
           lastY = e.clientY;
           updateTransform();
@@ -598,6 +803,7 @@
             <div class="row"><span class="key">Pos</span><span class="value">${formatBytes(parseInt(e.target.dataset.pos, 10))}</span></div>
             <div class="row"><span class="key">Loc</span><span class="value">${e.target.dataset.loc}</span></div>
             <div class="row"><span class="key">Time</span><span class="value">${e.target.dataset.time}</span></div>
+            <div class="row"><span class="key">Arena</span><span class="value">${e.target.dataset.id}</span></div>
           `;
           tooltip.style.left = (e.clientX + 12) + 'px';
           tooltip.style.top = (e.clientY + 12) + 'px';
@@ -612,35 +818,18 @@
 
       viewport.addEventListener('wheel', e => {
         e.preventDefault();
+        const vs = getCurrentState();
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        zoomX *= delta;
-        zoomY *= delta;
-        zoomX = Math.max(0.5, Math.min(20, zoomX));
-        zoomY = Math.max(0.5, Math.min(10, zoomY));
-        zoomXInput.value = zoomX;
-        zoomYInput.value = zoomY;
+        vs.zoomX *= delta;
+        vs.zoomY *= delta;
+        vs.zoomX = Math.max(0.5 / ZOOM_X_MID, Math.min(20 / ZOOM_X_MID, vs.zoomX));
+        vs.zoomY = Math.max(0.5 / ZOOM_Y_MID, Math.min(10 / ZOOM_Y_MID, vs.zoomY));
+        zoomXInput.value = vs.zoomX * ZOOM_X_MID;
+        zoomYInput.value = vs.zoomY * ZOOM_Y_MID;
         updateTransform();
       });
 
-      zoomXInput.addEventListener('input', () => {
-        zoomX = parseFloat(zoomXInput.value);
-        updateTransform();
-      });
-
-      zoomYInput.addEventListener('input', () => {
-        zoomY = parseFloat(zoomYInput.value);
-        updateTransform();
-      });
-
-      document.getElementById('reset').addEventListener('click', () => {
-        zoomX = 1;
-        zoomY = 1;
-        panX = 0;
-        panY = 0;
-        zoomXInput.value = zoomX;
-        zoomYInput.value = zoomY;
-        updateTransform();
-      });
+      window.addEventListener('resize', updateScale);
     }
 
     async function init() {
@@ -648,8 +837,23 @@
         const text = await loadLog();
         const entries = parseLog(text);
         if (entries.length === 0) throw new Error('No log entries found. Is arena_log.json in the same directory?');
-        const { frames, peakY } = buildFrames(entries);
-        render(entries, frames, peakY);
+
+        globalMinTime = entries[0].timeMs;
+        globalMaxTime = entries[entries.length - 1].timeMs;
+        globalTimeSpan = globalMaxTime - globalMinTime;
+
+        const combined = buildFrames(entries);
+        combinedDataset = { entries, ...combined };
+
+        for (const [id, arenaEntries] of groupById(entries)) {
+          const arenaFrames = buildFrames(arenaEntries);
+          arenaDatasets.set(id, { entries: arenaEntries, ...arenaFrames });
+        }
+
+        setupTabs();
+        setupViewport();
+        setupControls();
+        render();
       } catch (err) {
         viewport.innerHTML = `<div class="error">${err.message}<br><br>Make sure you serve this page from a local web server so it can fetch arena_log.json.</div>`;
         console.error(err);

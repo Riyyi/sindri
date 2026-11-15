@@ -78,7 +78,7 @@ main :: proc() {
 	if opts.run do run_project(opts.overflow[:])
 	if opts.hot_reload do hot_reload(!opts.release, opts.overflow[:])
 	if opts.wgpu_init do wgpu_init(opts.wgpu_version)
-	if opts.fmt do format_source()
+	if opts.fmt && !format_source() do os.exit(1)
 	if opts.pre_commit do pre_commit()
 
 	// Fallback to building project, if no option provided
@@ -487,34 +487,57 @@ rewrite_imports :: proc(path: string, old_import, new_import: string) {
 // Formatting
 
 // Run `odinfmt -w` on source directory
-format_source :: proc() {
+format_source :: proc(quiet := false) -> bool {
+	err: brokkr.Error
 	for dir in ([]string{GAME_SRC_DIR, ENGINE_DIR}) {
-		err := brokkr.execute_command([]string{"odinfmt", "-w", dir})
-		if err != nil do os.exit(1)
+		if !quiet {
+			err = brokkr.execute_command([]string{"odinfmt", "-w", dir})
+		}
+		else {
+			err = brokkr.execute_command(
+				[]string{"odinfmt", "-w", dir},
+				nil,
+				0,
+				nil, // stdin
+				nil, // stdout
+			)
+		}
+		if err != nil do return false
 	}
+
+	return true
 }
 
 // -----------------------------------------
 // Git pre-commit hook
 
 pre_commit :: proc() {
+	// Stash additional changes
 	err := brokkr.execute_command(
 		[]string{"git", "stash", "push", "--keep-index", "--quiet"},
 	)
 	if err != nil do os.exit(1)
 
-	format_source()
+	// Pop additional changes
+	cleanup :: proc() {
+		err := brokkr.execute_command([]string{"git", "stash", "pop", "--quiet"})
+		if err != nil do os.exit(1)
+	}
+
+	ok := format_source(true)
+	if !ok {
+		cleanup()
+		os.exit(1)
+	}
 
 	err = brokkr.execute_command([]string{"git", "diff", "--quiet"})
 	if err != nil {
 		log.error("formatting changed staged files; commit aborted")
-		_ = brokkr.execute_command([]string{"git", "checkout", "--", "."})
-		_ = brokkr.execute_command([]string{"git", "stash", "pop", "--quiet"})
+		log.error("additional unstaged changes are in the git stash (if any)")
 		os.exit(1)
 	}
 
-	err = brokkr.execute_command([]string{"git", "stash", "pop", "--quiet"})
-	if err != nil do os.exit(1)
+	cleanup()
 }
 
 // -----------------------------------------

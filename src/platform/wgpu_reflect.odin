@@ -52,7 +52,8 @@ to_wgsl_struct :: proc(
 				names[i],
 				wgsl_type,
 			)
-		} else {
+		}
+		else {
 			fmt.sbprintf(&b, "\t%s: %s,\n", names[i], wgsl_type)
 		}
 	}
@@ -188,7 +189,8 @@ to_vertex_format :: proc(
 					case 4:
 						return .Sint32, true
 				}
-			} else {
+			}
+			else {
 				switch ti.size {
 					case 1:
 						return .Uint8, true
@@ -210,7 +212,8 @@ to_vertex_format :: proc(
 							case 4:
 								return .Float16x4, true
 						}
-					} else if elem.size == 4 {
+					}
+					else if elem.size == 4 {
 						switch v.count {
 							case 2:
 								return .Float32x2, true
@@ -248,7 +251,8 @@ to_vertex_format :: proc(
 										return .Sint32x4, true
 								}
 						}
-					} else {
+					}
+					else {
 						switch elem.size {
 							case 1:
 								switch v.count {

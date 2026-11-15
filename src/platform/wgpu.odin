@@ -61,10 +61,10 @@ state: struct {
 	os:                         OS,
 	// ----------------------------------------
 	instance:                   wgpu.Instance, // entry point: creates Adapter, Device and Surface
-	surface:                    wgpu.Surface, // handle to a presentable surface (e.g. a window)
-	adapter:                    wgpu.Adapter, // handle to physical GPU
-	device:                     wgpu.Device, // open connection to a GPU
-	queue:                      wgpu.Queue, // handle to command queue on a Device
+	surface:                    wgpu.Surface,  // handle to a presentable surface (e.g. a window)
+	adapter:                    wgpu.Adapter,  // handle to physical GPU
+	device:                     wgpu.Device,   // open connection to a GPU
+	queue:                      wgpu.Queue,    // handle to command queue on a Device
 	config:                     wgpu.SurfaceConfiguration,
 	module:                     wgpu.ShaderModule,
 	pipeline_layout:            wgpu.PipelineLayout,
@@ -297,15 +297,15 @@ frame :: proc "c" () {
 			render_pass_encoder,
 			slot = 0,
 			buffer = m.vertex_buffer,
-			offset = 0, // offset into buffer to start from
+			offset = 0,             // offset into buffer to start from
 			size = wgpu.WHOLE_SIZE, // x bytes of the buffer to use
 		)
 
 		wgpu.RenderPassEncoderSetIndexBuffer(
 			render_pass_encoder,
 			buffer = m.index_buffer,
-			format = .Uint16, // type of each element in the buffer
-			offset = 0, // offset into buffer to start from
+			format = .Uint16,       // type of each element in the buffer
+			offset = 0,             // offset into buffer to start from
 			size = wgpu.WHOLE_SIZE, // x bytes of the buffer to use
 		)
 
@@ -313,8 +313,8 @@ frame :: proc "c" () {
 			render_pass_encoder,
 			m.index_count,
 			instanceCount = 1, // draw x instance(s) of the mesh
-			firstIndex = 0, // offset into buffer to start from, useful for drawing sub-mesh
-			baseVertex = 0, // value added to index before vertex fetch, useful for multi-mesh vertex buffers
+			firstIndex = 0,    // offset into buffer to start from, useful for drawing sub-mesh
+			baseVertex = 0,    // value added to index before vertex fetch, useful for multi-mesh vertex buffers
 			firstInstance = 0, // number to start instance index from
 		)
 	}
@@ -808,7 +808,8 @@ pick_present_mode :: proc(vsync: bool) -> wgpu.PresentMode {
 		if slice.contains(present_modes, wgpu.PresentMode.FifoRelaxed) {
 			return .FifoRelaxed // Adaptive Vsync
 		}
-	} else {
+	}
+	else {
 		if slice.contains(present_modes, wgpu.PresentMode.Immediate) {
 			return .Immediate // Vsync Off
 		}
@@ -913,7 +914,8 @@ create_diffuse_texture :: proc(
 				pixels[idx + 1] = 240
 				pixels[idx + 2] = 240
 				pixels[idx + 3] = 255
-			} else {
+			}
+			else {
 				pixels[idx + 0] = 64
 				pixels[idx + 1] = 64
 				pixels[idx + 2] = 64
@@ -942,7 +944,7 @@ create_diffuse_texture :: proc(
 		raw_data(pixels),
 		len(pixels),
 		&{offset = 0, bytesPerRow = width * 4, rowsPerImage = height}, // data layout
-		&{width = width, height = height, depthOrArrayLayers = 1}, // 3D extent
+		&{width = width, height = height, depthOrArrayLayers = 1},     // 3D extent
 	)
 
 	view := wgpu.TextureCreateView(texture, nil)

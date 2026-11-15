@@ -92,7 +92,7 @@ hot_reload_init :: proc(
 			region_count = 0,
 		},
 		region_headers = make(map[string]Region_Header, 1, allocator), // initial capacity for nil checks
-		regions = make(map[string]Memory_Region, 1, allocator), // initial capacity for nil checks
+		regions = make(map[string]Memory_Region, 1, allocator),        // initial capacity for nil checks
 		write_full_snapshot = true,
 	}
 
@@ -241,7 +241,8 @@ write_snapshot :: proc() -> os.Error {
 	snapshot: ^os.File
 	if hr.write_full_snapshot || !os.exists(hr.snapshot_path) {
 		snapshot = os.create(hr.snapshot_path) or_return
-	} else {
+	}
+	else {
 		snapshot = os.open(hr.snapshot_path, {.Read, .Write}) or_return
 	}
 	defer os.close(snapshot)
@@ -284,11 +285,13 @@ write_snapshot :: proc() -> os.Error {
 			delete(region.digest, hr.allocator)
 			region.digest = digest
 			os.write_at(snapshot, data_bytes, offset) or_return
-		} else if mem.compare(digest, region.digest) != 0 {
+		}
+		else if mem.compare(digest, region.digest) != 0 {
 			delete(region.digest, hr.allocator)
 			region.digest = digest
 			write_diff_at(snapshot, data_bytes, offset) or_return
-		} else {
+		}
+		else {
 			delete(digest, hr.allocator)
 		}
 		offset += cast(i64)header.data_size
@@ -321,7 +324,8 @@ write_diff_at :: proc(
 				) or_return
 				diff_idx = -1
 			}
-		} else if diff_idx < 0 {
+		}
+		else if diff_idx < 0 {
 			diff_idx = i
 		}
 	}

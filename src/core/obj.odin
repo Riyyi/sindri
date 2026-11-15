@@ -87,7 +87,8 @@ load_obj_model :: proc(
 						slash2 := strings.index_byte(token[slash + 1:], '/')
 						if slash2 != -1 {
 							vti_str = token[slash + 1:slash + 1 + slash2]
-						} else {
+						}
+						else {
 							vti_str = token[slash + 1:]
 						}
 					}
@@ -103,7 +104,8 @@ load_obj_model :: proc(
 						if vti >= 0 && vti < len(uvs) {
 							uv = uvs[vti]
 						}
-					} else if vi < len(uvs) {
+					}
+					else if vi < len(uvs) {
 						uv = uvs[vi]
 					}
 

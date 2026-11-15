@@ -290,7 +290,8 @@ joystick_callback :: proc "c" (id, connected: i32) {
 	context = state.ctx
 	if connected == glfw.CONNECTED {
 		base.on_event(base.Joystick_Connect_Event{id = id})
-	} else {
+	}
+	else {
 		base.on_event(base.Joystick_Disconnect_Event{id = id})
 	}
 } // GLFWjoystickfun

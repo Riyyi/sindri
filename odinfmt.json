@@ -3,6 +3,7 @@
 	"align_comments": true,
 	"align_struct_fields": true,
 	"align_struct_values": true,
+	"brace_style": "Stroustrup",
 	"character_width": 80,
 	"indent_cases": true,
 	"newline_limit": 1,

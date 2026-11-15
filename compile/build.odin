@@ -14,17 +14,20 @@ import "../vendor/brokkr"
 when ODIN_OS == .Windows {
 	LIB_EXT :: ".dll"
 	OS_NAME :: "windows"
-} else when ODIN_OS == .Darwin {
+}
+else when ODIN_OS == .Darwin {
 	LIB_EXT :: ".dylib"
 	OS_NAME :: "macos"
-} else {
+}
+else {
 	LIB_EXT :: ".so"
 	OS_NAME :: "linux"
 }
 
 when ODIN_ARCH == .amd64 {
 	ARCH_NAME :: "x86_64"
-} else when ODIN_ARCH == .arm64 {
+}
+else when ODIN_ARCH == .arm64 {
 	ARCH_NAME :: "aarch64"
 }
 
@@ -192,7 +195,8 @@ hot_reload :: proc(debug: bool, extra_args: []string) {
 			if !ok {
 				die("hot reload: failed to terminate running %s", process)
 			}
-		} else {
+		}
+		else {
 			_, ok, _ := exec([]string{"pkill", "-TERM", "-x", process})
 			if !ok {
 				die(
@@ -219,7 +223,8 @@ wgpu_init :: proc(version_override := "") {
 	when ODIN_OS == .Windows {
 		target_name :=
 			"wgpu-" + OS_NAME + "-" + ARCH_NAME + "-msvc" + "-release"
-	} else {
+	}
+	else {
 		target_name := "wgpu-" + OS_NAME + "-" + ARCH_NAME + "-release"
 	}
 
@@ -315,7 +320,8 @@ wgpu_init :: proc(version_override := "") {
 			); dl_err != nil {
 				die("wgpu setup: failed to download wgpu-native release")
 			}
-		} else {
+		}
+		else {
 			if dl_err := brokkr.execute_command(
 				[]string{"curl", "-fL", "--retry", "3", "-o", zip_path, url},
 			); dl_err != nil {
@@ -339,7 +345,8 @@ wgpu_init :: proc(version_override := "") {
 			); ex_err != nil {
 				die("wgpu setup: failed to extract wgpu-native release")
 			}
-		} else {
+		}
+		else {
 			// Matches scripts/wgpu-init.sh.
 			if ex_err := brokkr.execute_command(
 				[]string{"unzip", "-o", "-q", zip_path, "-d", target},
@@ -384,7 +391,8 @@ bindings_version_from_file :: proc(
 chmod_recursively :: proc(path: string) {
 	when ODIN_OS == .Windows {
 		return
-	} else {
+	}
+	else {
 		info, err := os.stat(path, context.temp_allocator)
 		if err != nil {
 			die(
@@ -520,7 +528,9 @@ pre_commit :: proc() {
 
 	// Pop additional changes
 	cleanup :: proc() {
-		err := brokkr.execute_command([]string{"git", "stash", "pop", "--quiet"})
+		err := brokkr.execute_command(
+			[]string{"git", "stash", "pop", "--quiet"},
+		)
 		if err != nil do os.exit(1)
 	}
 
@@ -588,7 +598,8 @@ engine_is_running :: proc() -> bool {
 		)
 		if !ok do return false
 		return strings.contains(string(out), PROJECT_NAME + ".exe")
-	} else {
+	}
+	else {
 		_, ok, code := exec([]string{"pgrep", "-x", PROJECT_NAME}, false)
 		if !ok do return false
 		return code == 0

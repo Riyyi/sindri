@@ -24,17 +24,17 @@ Key :: enum i16 {
 
 	// Named printable keys
 	Key_Space         = 32,
-	Key_Apostrophe    = 39, // '
-	Key_Comma         = 44, // ,
-	Key_Minus         = 45, // -
-	Key_Period        = 46, // .
-	Key_Slash         = 47, // /
-	Key_Semicolon     = 59, // ;
-	Key_Equal         = 61, // =
-	Key_Left_Bracket  = 91, // [
-	Key_Backslash     = 92, // \
-	Key_Right_Bracket = 93, // ]
-	Key_Grave_Accent  = 96, // `
+	Key_Apostrophe    = 39,  // '
+	Key_Comma         = 44,  // ,
+	Key_Minus         = 45,  // -
+	Key_Period        = 46,  // .
+	Key_Slash         = 47,  // /
+	Key_Semicolon     = 59,  // ;
+	Key_Equal         = 61,  // =
+	Key_Left_Bracket  = 91,  // [
+	Key_Backslash     = 92,  // \
+	Key_Right_Bracket = 93,  // ]
+	Key_Grave_Accent  = 96,  // `
 	Key_World_1       = 161, // non-US #1
 	Key_World_2       = 162, // non-US #2
 

@@ -71,7 +71,8 @@ add :: proc(t: ^Things) -> Thing_Ref {
 		slot = t.next_free
 		t.next_free = t.free_list[t.next_free]
 		t.free_list[slot] = THING_NIL // clean up the pop'ed free-slot
-	} else if (t.next_unused < THINGS_MAX) {
+	}
+	else if (t.next_unused < THINGS_MAX) {
 		if t.next_unused == THING_NIL do t.next_unused = 1 // first ever add()
 		slot = t.next_unused
 		t.next_unused += 1

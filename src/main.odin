@@ -30,7 +30,7 @@ main :: proc() {
 	defer api.destroy()
 	settings := api.settings()
 
-	// Event system
+	// Event systems
 	base.event_bus_init()
 	defer base.event_bus_destroy()
 

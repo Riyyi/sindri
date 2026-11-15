@@ -117,6 +117,57 @@ arena_allocator_proc :: proc(
 ) {
 	arena := cast(^Arena)allocator_data
 
+	switch mode {
+		case .Alloc, .Alloc_Non_Zeroed:
+			arena_write_log(arena, arena_log, .Push, cast(u64)size, loc)
+		case .Free:
+		// Not implemented in arena
+		case .Free_All:
+			arena_write_log(
+				arena,
+				arena_log,
+				.Clear,
+				cast(u64)arena.arena.total_used,
+				loc,
+			)
+		case .Resize, .Resize_Non_Zeroed:
+			switch {
+				case old_memory == nil:
+					arena_write_log(
+						arena,
+						arena_log,
+						.Push,
+						cast(u64)size,
+						loc,
+					)
+				case size == old_size:
+				// No-op
+				case size == 0:
+				// Not implemented in arena
+				case size > old_size:
+					arena_write_log(
+						arena,
+						arena_log,
+						.Push,
+						cast(u64)(size - old_size),
+						loc,
+					)
+				case size < old_size:
+					arena_write_log(
+						arena,
+						arena_log,
+						.Pop,
+						cast(u64)(old_size - size),
+						loc,
+					)
+			}
+
+		case .Query_Features:
+		// No state change
+		case .Query_Info:
+		// Not implemented in arena
+	}
+
 	return vmem.arena_allocator_proc(
 		&arena.arena,
 		mode,

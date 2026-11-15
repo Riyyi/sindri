@@ -43,9 +43,7 @@ signals_destroy :: proc() {
 @(private = "file")
 signal_handler :: proc "c" (sig: i32) {
 	switch sig {
-		case libc.SIGINT:
-			fallthrough
-		case libc.SIGTERM:
+		case libc.SIGINT, libc.SIGTERM:
 			intrinsics.atomic_store(&quit_signal_received, true)
 		case:
 			context = state.ctx

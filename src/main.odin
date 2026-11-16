@@ -17,12 +17,22 @@ import "sindri:platform"
 VERSION :: #config(VERSION, "dev")
 
 // -----------------------------------------
+// Variables
+
+arena: base.Arena
+
+// -----------------------------------------
+// Public functions
 
 main :: proc() {
 	fmt.println("hello world!", VERSION)
 
+	arena = base.arena_init_static()
+	defer base.arena_destroy(&arena)
+	allocator := base.arena_allocator(&arena)
+
 	// Hot reload development functionality
-	base.hot_reload_init(VERSION)
+	base.hot_reload_init(VERSION, allocator)
 	defer base.hot_reload_destroy()
 
 	// Load game API & settings
@@ -31,7 +41,7 @@ main :: proc() {
 	settings := api.settings()
 
 	// Event systems
-	base.event_bus_init()
+	base.event_bus_init(allocator)
 	defer base.event_bus_destroy()
 
 	base.event_subscribe(base.Key_Press_Event, test)
@@ -46,14 +56,15 @@ main :: proc() {
 	defer platform.os_destroy()
 
 	// Initialize GPU resources
-	platform.instance_init(settings)
+	platform.instance_init(settings, allocator)
 	defer platform.instance_destroy()
 	load_test_model()
 
-	things := core.Things{}
-	camera := core.add(&things)
+	things := new(core.Things, allocator)
+	defer free(things, allocator)
+	camera := core.add(things)
 
-	base.register_region("things", &things, size_of(core.Things))
+	base.register_region("things", things, size_of(core.Things))
 
 	api.register_memory()
 

@@ -8,6 +8,7 @@ package base
 
 import "base:runtime"
 import "core:crypto/hash"
+import "core:crypto/sha2"
 import "core:fmt"
 import "core:mem"
 import "core:os"
@@ -20,6 +21,9 @@ SNAPSHOT_FILE :: "snapshot.sndr"
 MAGIC_STRING :: 0x72646E73 // "rdns" -> "sndr" in little endian
 HOT_RELOAD_VERSION :: 1
 APP_VERSION_SIZE :: 4 + time.MIN_YYYY_DATE_LEN + 8 + 6 // example: `dev-2026-09-23-a4084b3-debug`
+
+HASH_ALGORITHM :: hash.Algorithm.SHA256
+DIGEST_SIZE :: sha2.DIGEST_SIZE_256
 
 // -----------------------------------------
 // Types
@@ -42,7 +46,7 @@ Region_Header :: struct #packed #all_or_none {
 Memory_Region :: struct {
 	ptr_location: rawptr,
 	// TODO: How do we do hash compare without having to hash current memory every frame?
-	digest:       []u8, // hash of this region in last snapshot
+	digest:       [DIGEST_SIZE]u8, // hash of this region in last snapshot
 }
 
 @(private)
@@ -110,9 +114,6 @@ hot_reload_destroy :: proc() {
 	delete(hr.snapshot_path, hr.allocator)
 
 	for key, region in hr.region_headers do delete(key, hr.allocator)
-	for key, region in hr.regions {
-		if region.digest != nil do delete(region.digest, hr.allocator)
-	}
 
 	delete(hr.region_headers)
 	delete(hr.regions)
@@ -140,6 +141,7 @@ register_region :: proc(
 	}
 	hr.regions[hash_cpy] = Memory_Region {
 		ptr_location = ptr_location,
+		digest       = {},
 	}
 
 	hr.snapshot_header.region_count += 1
@@ -209,13 +211,8 @@ read_snapshot :: proc() -> (fresh: bool, err: os.Error) {
 		}
 
 		// Create digest and store in registered regions
-		digest := hash.hash_bytes(
-			hash.Algorithm.SHA256,
-			data_bytes,
-			hr.allocator,
-		)
 		region := &hr.regions[key]
-		region.digest = digest
+		hash.hash_bytes_to_buffer(HASH_ALGORITHM, data_bytes, region.digest[:])
 
 		// Copy snapshot memory to the memory region
 		dest := mem.byte_slice(
@@ -276,23 +273,19 @@ write_snapshot :: proc() -> os.Error {
 
 		// Write region data (if bytes differ)
 		data_bytes := mem.byte_slice(region.ptr_location, header.data_size)
-		digest := hash.hash_bytes(
-			hash.Algorithm.SHA256,
+		@(static) new_digest: [DIGEST_SIZE]u8
+		digest := hash.hash_bytes_to_buffer(
+			HASH_ALGORITHM,
 			data_bytes,
-			hr.allocator,
+			new_digest[:],
 		)
 		if hr.write_full_snapshot {
-			delete(region.digest, hr.allocator)
-			region.digest = digest
+			region.digest = new_digest
 			os.write_at(snapshot, data_bytes, offset) or_return
 		}
-		else if mem.compare(digest, region.digest) != 0 {
-			delete(region.digest, hr.allocator)
-			region.digest = digest
+		else if mem.compare(digest, region.digest[:]) != 0 {
+			region.digest = new_digest
 			write_diff_at(snapshot, data_bytes, offset) or_return
-		}
-		else {
-			delete(digest, hr.allocator)
 		}
 		offset += cast(i64)header.data_size
 	}

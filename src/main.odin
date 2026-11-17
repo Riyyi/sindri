@@ -58,8 +58,13 @@ main :: proc() {
 	// Initialize GPU resources
 	platform.instance_init(settings, allocator)
 	defer platform.instance_destroy()
-	load_test_model()
 
+	// Assets
+	assets := core.assets_init(allocator)
+	defer core.assets_destroy(&assets)
+	load_test_model(&assets)
+
+	// Large Array of Things
 	things := new(core.Things, allocator)
 	defer free(things, allocator)
 	camera := core.add(things)
@@ -112,12 +117,9 @@ test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {
 }
 
 // Load model from disk and upload it
-load_test_model :: proc() {
-	assets := core.assets_init()
-	defer core.assets_destroy(&assets)
-
-	cube := core.load_model(&assets, "assets/cube.obj")
-	suzanne := core.load_model(&assets, "assets/suzanne.obj")
+load_test_model :: proc(assets: ^core.Assets) {
+	cube := core.load_model(assets, "assets/cube.obj")
+	suzanne := core.load_model(assets, "assets/suzanne.obj")
 
 	platform.create_material("dummy")
 	platform.create_renderable(

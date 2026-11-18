@@ -7,9 +7,8 @@
 package base
 
 import "base:runtime"
-import "core:crypto/hash"
-import "core:crypto/sha2"
 import "core:fmt"
+import "core:hash/xxhash"
 import "core:mem"
 import "core:os"
 import "core:path/filepath"
@@ -22,8 +21,7 @@ MAGIC_STRING :: 0x72646E73 // "rdns" -> "sndr" in little endian
 HOT_RELOAD_VERSION :: 1
 APP_VERSION_SIZE :: 4 + time.MIN_YYYY_DATE_LEN + 8 + 6 // example: `dev-2026-09-23-a4084b3-debug`
 
-HASH_ALGORITHM :: hash.Algorithm.SHA256
-DIGEST_SIZE :: sha2.DIGEST_SIZE_256
+DIGEST_SIZE :: xxhash.XXH64_hash
 
 // -----------------------------------------
 // Types
@@ -46,7 +44,7 @@ Region_Header :: struct #packed #all_or_none {
 Memory_Region :: struct {
 	ptr_location: rawptr,
 	// TODO: How do we do hash compare without having to hash current memory every frame?
-	digest:       [DIGEST_SIZE]u8, // hash of this region in last snapshot
+	digest:       DIGEST_SIZE, // hash of this region in last snapshot
 }
 
 @(private)
@@ -212,7 +210,8 @@ read_snapshot :: proc() -> (fresh: bool, err: os.Error) {
 
 		// Create digest and store in registered regions
 		region := &hr.regions[key]
-		hash.hash_bytes_to_buffer(HASH_ALGORITHM, data_bytes, region.digest[:])
+		digest := xxhash.XXH64(data_bytes)
+		region.digest = digest
 
 		// Copy snapshot memory to the memory region
 		dest := mem.byte_slice(
@@ -273,17 +272,12 @@ write_snapshot :: proc() -> os.Error {
 
 		// Write region data (if bytes differ)
 		data_bytes := mem.byte_slice(region.ptr_location, header.data_size)
-		@(static) new_digest: [DIGEST_SIZE]u8
-		digest := hash.hash_bytes_to_buffer(
-			HASH_ALGORITHM,
-			data_bytes,
-			new_digest[:],
-		)
+		new_digest := xxhash.XXH64(data_bytes)
 		if hr.write_full_snapshot {
 			region.digest = new_digest
 			os.write_at(snapshot, data_bytes, offset) or_return
 		}
-		else if mem.compare(digest, region.digest[:]) != 0 {
+		else if new_digest != region.digest {
 			region.digest = new_digest
 			write_diff_at(snapshot, data_bytes, offset) or_return
 		}

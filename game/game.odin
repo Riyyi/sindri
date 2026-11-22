@@ -1,3 +1,9 @@
+/*
+ * Copyright (C) 2026 Riyyi
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 package game
 
 import "core:fmt"
@@ -60,14 +66,14 @@ register_memory :: proc() {
 	base.register_region("test_memory", &t, size_of(Test_Memory))
 }
 
-init_once :: proc() {
-	fmt.println("init once")
-}
-
 init :: proc() {
 	fmt.println("hello from .dll!")
 
 	g.should_close = false
+}
+
+init_once :: proc() {
+	fmt.println("init once")
 }
 
 update :: proc(dt: f32) {

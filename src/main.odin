@@ -62,22 +62,32 @@ main :: proc() {
 	// Assets
 	assets := core.assets_init(allocator)
 	defer core.assets_destroy(&assets)
-	load_test_model(&assets)
 
 	// Large Array of Things
 	things := new(core.Things, allocator)
 	defer free(things, allocator)
-	camera := core.add(things)
+	camera := core.thing_add(things)
 
+	// Register memory regions
+	base.register_region("assets", cast(rawptr)&assets, size_of(core.Assets))
 	base.register_region("things", things, size_of(core.Things))
-
 	api.register_memory()
 
+	// Init
 	fresh, err := base.read_snapshot()
 	fmt.assertf(err == nil, "[main] failed to read snapshot", err)
-	if fresh do api.init_once()
-
+	assets.allocator = allocator
 	api.init()
+
+	// Init once
+	if fresh {
+		api.init_once()
+		load_test_model(&assets) // tmp
+	}
+	else {
+		core.asset_reload_after_hot_reload(&assets, "assets")
+	}
+	upload_test_model(&assets) // tmp
 
 	dt: f64
 	gt: f64
@@ -93,6 +103,9 @@ main :: proc() {
 		base.drain_event_queue()
 		api.update(cast(f32)dt)
 		base.write_snapshot()
+
+		// loop through Things, if model -> render
+		// register the Things inside game.odin
 
 		platform.frame()
 		api.render()
@@ -117,9 +130,18 @@ test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {
 }
 
 // Load model from disk and upload it
-load_test_model :: proc(assets: ^core.Assets) {
-	cube := core.load_model(assets, "assets/cube.obj")
-	suzanne := core.load_model(assets, "assets/suzanne.obj")
+load_test_model :: proc(a: ^core.Assets) {
+	cube_ref := core.asset_load_model(a, "assets/cube.obj")
+	suzanne_ref := core.asset_load_model(a, "assets/suzanne.obj")
+}
+
+// Load model from disk and upload it
+upload_test_model :: proc(a: ^core.Assets) {
+	cube_ref := core.asset_load_model(a, "assets/cube.obj")
+	suzanne_ref := core.asset_load_model(a, "assets/suzanne.obj")
+
+	cube := core.asset_get(a, cube_ref).data.(core.Model)
+	suzanne := core.asset_get(a, suzanne_ref).data.(core.Model)
 
 	platform.create_material("dummy")
 	platform.create_renderable(

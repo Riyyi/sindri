@@ -35,10 +35,13 @@ Thing_Kind :: enum {
 
 // Fixed size fat struct
 Thing :: struct {
-	kind:  Thing_Kind,
+	kind: Thing_Kind,
+
 	pos:   base.Vec3,
 	rot:   base.Vec3,
 	scale: base.Vec3,
+
+	model: ^Model,
 
 	// TODO: intrusive list
 	// parent: Thing_Ref
@@ -60,7 +63,7 @@ Things :: struct {
 // -----------------------------------------
 // Public functions
 
-add :: proc(t: ^Things) -> Thing_Ref {
+thing_add :: proc(t: ^Things) -> Thing_Ref {
 	slot: Thing_Idx
 	gen: u16
 
@@ -88,8 +91,8 @@ add :: proc(t: ^Things) -> Thing_Ref {
 	return {idx = slot, gen = gen}
 }
 
-rem :: proc(t: ^Things, ref: Thing_Ref) {
-	idx := deref(t, ref)
+thing_rem :: proc(t: ^Things, ref: Thing_Ref) {
+	idx := thing_deref(t, ref)
 	if idx == THING_NIL do return
 
 	t.used[idx] = false
@@ -97,11 +100,11 @@ rem :: proc(t: ^Things, ref: Thing_Ref) {
 	t.next_free = idx
 }
 
-get :: proc(t: ^Things, ref: Thing_Ref) -> ^Thing {
-	return &t.things[deref(t, ref)]
+thing_get :: proc(t: ^Things, ref: Thing_Ref) -> ^Thing {
+	return &t.things[thing_deref(t, ref)]
 }
 
-deref :: proc(t: ^Things, ref: Thing_Ref) -> Thing_Idx {
+thing_deref :: proc(t: ^Things, ref: Thing_Ref) -> Thing_Idx {
 	if ref.idx > THING_NIL &&
 	   ref.idx < THINGS_MAX &&
 	   t.used[ref.idx] &&

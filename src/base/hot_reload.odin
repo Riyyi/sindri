@@ -21,7 +21,7 @@ MAGIC_STRING :: 0x72646E73 // "rdns" -> "sndr" in little endian
 HOT_RELOAD_VERSION :: 1
 APP_VERSION_SIZE :: 4 + time.MIN_YYYY_DATE_LEN + 8 + 6 // example: `dev-2026-09-23-a4084b3-debug`
 
-DIGEST_SIZE :: xxhash.XXH64_hash
+DIGEST :: xxhash.XXH64_hash
 
 // -----------------------------------------
 // Types
@@ -44,7 +44,7 @@ Region_Header :: struct #packed #all_or_none {
 Memory_Region :: struct {
 	ptr_location: rawptr,
 	// TODO: How do we do hash compare without having to hash current memory every frame?
-	digest:       DIGEST_SIZE, // hash of this region in last snapshot
+	digest:       DIGEST, // hash of this region in last snapshot
 }
 
 @(private)

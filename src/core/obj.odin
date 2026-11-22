@@ -30,7 +30,7 @@ load_obj_model :: proc(
 		fmt.eprintfln("[obj] failed to read model: %s", path)
 		return nil, nil, false
 	}
-	defer delete(data)
+	defer delete(data, allocator)
 
 	positions: [dynamic]base.Vec3
 	uvs: [dynamic]base.Vec2

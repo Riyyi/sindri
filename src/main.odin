@@ -66,28 +66,32 @@ main :: proc() {
 	// Large Array of Things
 	things := new(core.Things, allocator)
 	defer free(things, allocator)
-	camera := core.thing_add(things)
+
+	// Register engine API
+	engine_api := core.Engine_API {
+		assets = &assets,
+		things = things,
+	}
+	api.register_api(&engine_api)
 
 	// Register memory regions
 	base.register_region("assets", cast(rawptr)&assets, size_of(core.Assets))
 	base.register_region("things", things, size_of(core.Things))
 	api.register_memory()
 
-	// Init
+	// Read memory snapshot
 	fresh, err := base.read_snapshot()
 	fmt.assertf(err == nil, "[main] failed to read snapshot", err)
 	assets.allocator = allocator
-	api.init()
 
-	// Init once
+	// Init
 	if fresh {
 		api.init_once()
-		load_test_model(&assets) // tmp
 	}
 	else {
 		core.asset_reload_after_hot_reload(&assets, "assets")
 	}
-	upload_test_model(&assets) // tmp
+	api.init()
 
 	dt: f64
 	gt: f64
@@ -127,39 +131,4 @@ main :: proc() {
 test :: proc(e: ^base.Key_Press_Event, _: rawptr) -> bool {
 	fmt.println("main: @@@@@@@@@@@", e)
 	return true
-}
-
-// Load model from disk and upload it
-load_test_model :: proc(a: ^core.Assets) {
-	cube_ref := core.asset_load_model(a, "assets/cube.obj")
-	suzanne_ref := core.asset_load_model(a, "assets/suzanne.obj")
-}
-
-// Load model from disk and upload it
-upload_test_model :: proc(a: ^core.Assets) {
-	cube_ref := core.asset_load_model(a, "assets/cube.obj")
-	suzanne_ref := core.asset_load_model(a, "assets/suzanne.obj")
-
-	cube := core.asset_get(a, cube_ref).data.(core.Model)
-	suzanne := core.asset_get(a, suzanne_ref).data.(core.Model)
-
-	platform.create_material("dummy")
-	platform.create_renderable(
-		"assets/cube.obj",
-		cube.vertices,
-		cube.indices,
-		0,
-	)
-	platform.create_renderable(
-		"assets/suzanne.obj",
-		suzanne.vertices,
-		suzanne.indices,
-		3,
-	)
-	platform.create_renderable(
-		"assets/suzanne.obj",
-		suzanne.vertices,
-		suzanne.indices,
-		-3,
-	)
 }

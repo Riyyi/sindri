@@ -8,6 +8,7 @@ package game
 
 import "core:fmt"
 import "core:time"
+import "sindri:platform"
 
 import "sindri:base"
 import "sindri:core"
@@ -30,8 +31,11 @@ Test_Memory :: struct {
 g: Game_Memory
 t: Test_Memory
 
+engine: ^core.Engine_API
+
 game_api := core.Game_API {
 	settings        = settings,
+	register_api    = register_api,
 	register_memory = register_memory,
 	init_once       = init_once,
 	init            = init,
@@ -61,19 +65,52 @@ settings :: proc() -> base.Settings {
 	}
 }
 
+register_api :: proc(api: ^core.Engine_API) {
+	engine = api
+}
+
 register_memory :: proc() {
 	base.register_region("game_memory", &g, size_of(Game_Memory))
 	base.register_region("test_memory", &t, size_of(Test_Memory))
 }
 
-init :: proc() {
-	fmt.println("hello from .dll!")
-
-	g.should_close = false
-}
-
 init_once :: proc() {
 	fmt.println("init once")
+
+	camera := core.thing_add(engine.things)
+	player := core.thing_add(engine.things)
+}
+
+init :: proc() {
+	fmt.println("hello from the game!")
+
+	g.should_close = false
+
+	cube_ref := core.asset_load_model(engine.assets, "assets/cube.obj")
+	suzanne_ref := core.asset_load_model(engine.assets, "assets/suzanne.obj")
+
+	cube := core.asset_get(engine.assets, cube_ref).data.(core.Model)
+	suzanne := core.asset_get(engine.assets, suzanne_ref).data.(core.Model)
+
+	platform.create_material("dummy")
+	platform.create_renderable(
+		"assets/cube.obj",
+		cube.vertices,
+		cube.indices,
+		0,
+	)
+	platform.create_renderable(
+		"assets/suzanne.obj",
+		suzanne.vertices,
+		suzanne.indices,
+		3,
+	)
+	platform.create_renderable(
+		"assets/suzanne.obj",
+		suzanne.vertices,
+		suzanne.indices,
+		-3,
+	)
 }
 
 update :: proc(dt: f32) {

@@ -11,8 +11,16 @@ import "sindri:base"
 // -----------------------------------------
 // Types
 
+// API for when the Game talks to the Engine.
+Engine_API :: struct {
+	assets: ^Assets,
+	things: ^Things,
+}
+
+// API for when the Engine talks to the Game.
 Game_API :: struct {
 	settings:        proc() -> base.Settings,
+	register_api:    proc(api: ^Engine_API),
 	register_memory: proc(),
 	init_once:       proc(),
 	init:            proc(),

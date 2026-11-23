@@ -84,6 +84,9 @@ Joystick_Disconnect_Event :: struct {
 	id: i32,
 }
 
+//  TODO: Settings change event
+// Settings_Change_Event :: struct {}
+
 // Message Receiver
 @(private)
 Listener :: struct {

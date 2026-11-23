@@ -38,7 +38,7 @@ main :: proc() {
 	// Load game API & settings
 	api := game.api()
 	defer api.destroy()
-	settings := api.settings()
+	settings := base.settings()
 
 	// Event systems
 	base.event_bus_init(allocator)
@@ -53,6 +53,7 @@ main :: proc() {
 	// Initialize Window
 	platform.os_init(settings)
 	platform.os_set_monitor(settings)
+	platform.os_set_mouse_capture(settings.mouse_captured)
 	defer platform.os_destroy()
 
 	// Initialize GPU resources
@@ -111,8 +112,8 @@ main :: proc() {
 		// loop through Things, if model -> render
 		// register the Things inside game.odin
 
-		platform.frame()
 		api.render()
+		platform.frame()
 
 		dt = time.duration_seconds(time.tick_since(start))
 		gt += dt

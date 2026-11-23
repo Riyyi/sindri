@@ -35,8 +35,8 @@ os_init :: proc(settings: base.Settings) {
 
 	// Create GLFW window
 	state.os.window = glfw.CreateWindow(
-		i32(settings.width),
-		i32(settings.height),
+		cast(i32)settings.width,
+		cast(i32)settings.height,
 		strings.unsafe_string_to_cstring(settings.title),
 		nil,
 		nil,
@@ -65,8 +65,8 @@ os_set_monitor :: proc(settings: base.Settings) {
 	monitor := glfw.GetPrimaryMonitor()
 	x_pos: i32
 	y_pos: i32
-	width := i32(settings.width)
-	height := i32(settings.height)
+	width := cast(i32)settings.width
+	height := cast(i32)settings.height
 	target_monitor: glfw.MonitorHandle
 
 	mode := glfw.GetVideoMode(monitor)
@@ -86,7 +86,7 @@ os_set_monitor :: proc(settings: base.Settings) {
 			glfw.SetWindowAttrib(
 				state.os.window,
 				glfw.DECORATED,
-				i32(glfw.FALSE),
+				cast(i32)glfw.FALSE,
 			)
 		case .Windowed:
 			// Put window in the center of the monitor
@@ -96,11 +96,12 @@ os_set_monitor :: proc(settings: base.Settings) {
 			glfw.SetWindowAttrib(
 				state.os.window,
 				glfw.DECORATED,
-				i32(glfw.TRUE),
+				cast(i32)glfw.TRUE,
 			)
 	}
 
-	refresh := settings.refresh == 0 ? glfw.DONT_CARE : i32(settings.refresh)
+	refresh :=
+		settings.refresh == 0 ? glfw.DONT_CARE : cast(i32)settings.refresh
 
 	glfw.SetWindowMonitor(
 		state.os.window,
@@ -123,7 +124,7 @@ os_should_close :: proc() -> bool {
 }
 
 os_set_should_close :: proc(val: bool) {
-	glfw.SetWindowShouldClose(state.os.window, b32(val))
+	glfw.SetWindowShouldClose(state.os.window, cast(b32)val)
 }
 
 os_poll_events :: proc() {
@@ -132,7 +133,7 @@ os_poll_events :: proc() {
 
 os_get_framebuffer_size :: proc() -> (width, height: u32) {
 	iw, ih := glfw.GetFramebufferSize(state.os.window)
-	return u32(iw), u32(ih)
+	return cast(u32)iw, cast(u32)ih
 }
 
 os_get_surface :: proc(instance: wgpu.Instance) -> wgpu.Surface {
@@ -140,16 +141,24 @@ os_get_surface :: proc(instance: wgpu.Instance) -> wgpu.Surface {
 }
 
 os_key_state :: proc(key: base.Key) -> base.Action {
-	return input_action(glfw.GetKey(state.os.window, i32(key)))
+	return input_action(glfw.GetKey(state.os.window, cast(i32)key))
 }
 
 os_mouse_button_state :: proc(button: base.Mouse_Button) -> base.Action {
-	return input_action(glfw.GetMouseButton(state.os.window, i32(button)))
+	return input_action(glfw.GetMouseButton(state.os.window, cast(i32)button))
 }
 
-os_mouse_position :: proc() -> (x_pos: f32, y_pos: f32) {
+os_mouse_position :: proc() -> base.Vec2 {
 	x_pos_f64, y_pos_64 := glfw.GetCursorPos(state.os.window)
-	return f32(x_pos_f64), f32(y_pos_64)
+	return {cast(f32)x_pos_f64, cast(f32)y_pos_64}
+}
+
+os_set_mouse_capture :: proc(capture: bool) {
+	glfw.SetInputMode(
+		state.os.window,
+		glfw.CURSOR,
+		capture ? glfw.CURSOR_DISABLED : glfw.CURSOR_NORMAL,
+	)
 }
 
 // -----------------------------------------
@@ -265,7 +274,10 @@ cursor_pos_callback :: proc "c" (
 ) {
 	context = state.ctx
 	base.on_event(
-		base.Mouse_Position_Event{x_pos = f32(x_pos), y_pos = f32(y_pos)},
+		base.Mouse_Position_Event {
+			x_pos = cast(f32)x_pos,
+			y_pos = cast(f32)y_pos,
+		},
 	)
 } // GLFWcursorposfun
 
@@ -278,8 +290,8 @@ scroll_callback :: proc "c" (
 	context = state.ctx
 	base.on_event(
 		base.Mouse_Scroll_Event {
-			x_offset = f32(x_offset),
-			y_offset = f32(y_offset),
+			x_offset = cast(f32)x_offset,
+			y_offset = cast(f32)y_offset,
 		},
 	)
 } // GLFWscrollfun

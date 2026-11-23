@@ -7,17 +7,19 @@
 package game
 
 import "core:fmt"
+import "core:math"
 import "core:time"
-import "sindri:platform"
 
 import "sindri:base"
 import "sindri:core"
+import "sindri:platform"
 
 // -----------------------------------------
 // Types
 
 Game_Memory :: struct {
 	should_close: bool,
+	camera:       core.Thing_Ref,
 }
 
 Test_Memory :: struct {
@@ -34,7 +36,6 @@ t: Test_Memory
 engine: ^core.Engine_API
 
 game_api := core.Game_API {
-	settings        = settings,
 	register_api    = register_api,
 	register_memory = register_memory,
 	init_once       = init_once,
@@ -47,22 +48,13 @@ game_api := core.Game_API {
 	force_restart   = force_restart,
 }
 
+mouse_last: base.Vec2
+
 // -----------------------------------------
 // Public functions
 
 api :: proc() -> ^core.Game_API {
 	return &game_api
-}
-
-settings :: proc() -> base.Settings {
-	return base.Settings {
-		width = 960,
-		height = 540,
-		title = "WGPU Native Triangle",
-		mode = base.WindowMode.Windowed,
-		refresh = 60,
-		vsync = true,
-	}
 }
 
 register_api :: proc(api: ^core.Engine_API) {
@@ -77,8 +69,11 @@ register_memory :: proc() {
 init_once :: proc() {
 	fmt.println("init once")
 
-	camera := core.thing_add(engine.things)
-	player := core.thing_add(engine.things)
+	g.camera = core.thing_add(engine.things)
+
+	camera := core.thing_get(engine.things, g.camera)
+	camera.pos = {0, 2, 5}
+	camera.rot = {-(25 * math.PI / 180), 0, 0}
 }
 
 init :: proc() {
@@ -113,18 +108,43 @@ init :: proc() {
 	)
 }
 
+clicked: bool
+captured: bool
 update :: proc(dt: f32) {
 	fmt.println("dt:", dt)
 
-	if core.key_state(.Key_Escape) == .Press {
+	if platform.os_key_state(.Key_Escape) == .Press {
 		g.should_close = true
 	}
 
-	if core.key_state(.Key_F5) == .Press do t.asd = 555
-	if core.key_state(.Key_F6) == .Press do t.asd = 666
+	if platform.os_key_state(.Key_F5) == .Press do t.asd = 555
+	if platform.os_key_state(.Key_F6) == .Press do t.asd = 666
+
+	if platform.os_mouse_button_state(.Left) == .Press && !clicked {
+		clicked = true
+		platform.os_set_mouse_capture(!captured)
+		captured = !captured
+	}
+	if platform.os_mouse_button_state(.Left) == .Release {
+		clicked = false
+	}
+
+	// Mouse delta
+	pos := platform.os_mouse_position()
+	if mouse_last == 0 do mouse_last = pos // restore position after hot-reload
+	mouse_delta := pos - mouse_last
+	mouse_last = pos
+
+	// Update camera
+	camera := core.thing_get(engine.things, g.camera)
+	sensitivity := base.settings().mouse_sensitivity
+	core.camera_update(dt, camera, mouse_delta, sensitivity)
 }
 
-render :: proc() {  }
+render :: proc() {
+	camera := core.thing_get(engine.things, g.camera)
+	platform.state.camera = {camera.pos, camera.rot}
+}
 
 destroy :: proc() {
 	fmt.println("bye")
@@ -143,9 +163,9 @@ should_close :: proc() -> bool {
 }
 
 force_reload :: proc() -> bool {
-	return core.key_state(.Key_F5) == .Press
+	return platform.os_key_state(.Key_F5) == .Press
 }
 
 force_restart :: proc() -> bool {
-	return core.key_state(.Key_F6) == .Press
+	return platform.os_key_state(.Key_F6) == .Press
 }

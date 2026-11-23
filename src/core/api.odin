@@ -6,8 +6,6 @@
 
 package core
 
-import "sindri:base"
-
 // -----------------------------------------
 // Types
 
@@ -19,7 +17,6 @@ Engine_API :: struct {
 
 // API for when the Engine talks to the Game.
 Game_API :: struct {
-	settings:        proc() -> base.Settings,
 	register_api:    proc(api: ^Engine_API),
 	register_memory: proc(),
 	init_once:       proc(),

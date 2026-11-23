@@ -17,8 +17,17 @@ import "wgpu:wgpu"
 
 import "sindri:base"
 
+CAMERA_NEAR :: 0.1
+CAMERA_FAR :: 100
+
 // -----------------------------------------
 // Types
+
+// Main camera
+Camera :: struct {
+	pos: base.Vec3,
+	rot: base.Vec3,
+}
 
 // Updated once per frame
 Camera_Uniform :: struct {
@@ -76,9 +85,11 @@ state: struct {
 	depth_texture:              wgpu.Texture,
 	depth_texture_view:         wgpu.TextureView,
 	// ----------------------------------------
+	camera:                     Camera,
 	camera_uniform_buffer:      wgpu.Buffer,
 	camera_bind_group_layout:   wgpu.BindGroupLayout,
 	camera_bind_group:          wgpu.BindGroup,
+	camera_fov:                 f32,
 	// ----------------------------------------
 	material_bind_group_layout: wgpu.BindGroupLayout,
 	materials:                  map[string]Material,
@@ -127,6 +138,7 @@ instance_init :: proc(
 	// Present modes
 	get_present_modes()
 	state.vsync = settings.vsync
+	state.camera_fov = settings.fov
 
 	// Device
 	wgpu.AdapterRequestDevice(state.adapter, nil, {callback = on_device})
@@ -201,17 +213,17 @@ resize :: proc "c" () {
 	wgpu.SurfaceConfigure(state.surface, &state.config)
 
 	create_depth_texture()
+}
 
-	// The projection depends on aspect, so rebuild and re-upload the matrix
+frame :: proc "c" () {
+	context = state.ctx
+
+	// Recompute and re-upload the camera matrix every frame, for pos/rot/aspect
 	upload_camera(
 		state.queue,
 		state.camera_uniform_buffer,
 		framebuffer_aspect(),
 	)
-}
-
-frame :: proc "c" () {
-	context = state.ctx
 
 	surface_texture := wgpu.SurfaceGetCurrentTexture(state.surface)
 	switch surface_texture.status {
@@ -530,8 +542,8 @@ on_device :: proc "c" (
 	// ----------------------------------------
 	// Compile shader
 
-	uniforms_struct := to_wgsl_struct(Camera_Uniform, "Camera")
-	defer delete(uniforms_struct)
+	camera_struct := to_wgsl_struct(Camera_Uniform, "Camera")
+	defer delete(camera_struct)
 	vertex_input_struct := to_wgsl_struct(
 		base.Vertex,
 		"VertexInput",
@@ -581,7 +593,7 @@ on_device :: proc "c" (
 		return textureSample(t_diffuse, s_diffuse, in.uv) * vec4<f32>(in.col, 1.0);
 	}}
 	`,
-		uniforms_struct,
+		camera_struct,
 		material_struct,
 		renderable_struct,
 		vertex_input_struct,
@@ -772,13 +784,6 @@ on_device :: proc "c" (
 			entries = raw_data(bind_group_entries[:]),
 		},
 	)
-
-	// Initial upload of the matrix
-	upload_camera(
-		state.queue,
-		state.camera_uniform_buffer,
-		framebuffer_aspect(),
-	)
 }
 
 @(private = "file")
@@ -876,10 +881,27 @@ camera_perspective :: proc(fovy_degrees, aspect, near, far: f32) -> base.Mat4 {
 
 @(private = "file")
 camera_mvp :: proc(aspect: f32) -> base.Mat4 {
-	projection := camera_perspective(60, aspect, 0.1, 100)
-	view := linalg.matrix4_look_at_f32({0, 2, 5}, {0, 0, 0}, {0, 1, 0})
+	projection := camera_perspective(
+		state.camera_fov,
+		aspect,
+		CAMERA_NEAR,
+		CAMERA_FAR,
+	)
+
+	yaw := linalg.matrix4_rotate(state.camera.rot.y, {0, 1, 0})
+	pitch := linalg.matrix4_rotate(state.camera.rot.x, {1, 0, 0})
+	rotation := yaw * pitch
+
+	forward := (rotation * base.Vec4{0, 0, -1, 0}).xyz
+	up := (rotation * base.Vec4{0, 1, 0, 0}).xyz
+
+	view := linalg.matrix4_look_at_f32(
+		state.camera.pos,
+		state.camera.pos + forward,
+		up,
+	)
 	// model = identity: the loader already centered the model at the origin
-	return projection * view
+	return projection * view // * model
 }
 
 @(private = "file")
